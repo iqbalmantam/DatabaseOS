@@ -118,7 +118,7 @@ if is_admin:
                         "Akhir Kontrak": new_end.strftime("%Y-%m-%d")
                     }
                     updated_df = pd.concat([st.session_state.employees, pd.DataFrame([new_row])], ignore_index=True)
-                    save_data(updated_df) # Simpan ke Google Sheets
+                    save_data(updated_df)
                     st.success(f"✅ ID '{clean_id}' berhasil ditambahkan ke Google Sheets!")
                     st.rerun()
 
@@ -143,7 +143,7 @@ if is_admin:
                         
                         if added_count > 0:
                             updated_df = pd.concat([st.session_state.employees, df_import_filtered], ignore_index=True)
-                            save_data(updated_df) # Simpan ke Google Sheets
+                            save_data(updated_df)
                             st.success(f"Berhasil mengimpor {added_count} data!")
                             if skipped_count > 0:
                                 st.warning(f"Dilewati {skipped_count} data karena ID duplikat.")
@@ -185,7 +185,7 @@ if is_admin:
 
                     if added_rows:
                         updated_df = pd.concat([st.session_state.employees, pd.DataFrame(added_rows)], ignore_index=True)
-                        save_data(updated_df) # Simpan ke Google Sheets
+                        save_data(updated_df)
                         st.success(f"Berhasil menambahkan {len(added_rows)} data baru!")
                         if skipped_count > 0:
                             st.warning(f"Dilewati {skipped_count} data karena ID duplikat.")
@@ -211,12 +211,34 @@ if is_admin:
 else:
     st.info("👁️ **Mode Akses:** Umum / Guest (Hanya dapat melihat dan mencari data)")
 
-# Fitur Pencarian
-search_query = st.text_input("🔍 Cari nama karyawan...", "")
+# --- FITUR PENCARIAN & FILTER (OPSI 2) ---
+col_cat, col_src = st.columns([1, 3])
+
+with col_cat:
+    search_category = st.selectbox(
+        "Cari Berdasarkan:", 
+        ["Semua Kolom", "Nama Lengkap", "Jabatan", "Cost Center"]
+    )
+
+with col_src:
+    search_query = st.text_input("🔍 Masukkan kata kunci pencarian...", "")
 
 df_display = st.session_state.employees.copy()
+
 if search_query and not df_display.empty:
-    df_display = df_display[df_display["Nama Lengkap"].astype(str).str.contains(search_query, case=False, na=False)]
+    query = search_query.strip().lower()
+    
+    if search_category == "Nama Lengkap":
+        df_display = df_display[df_display["Nama Lengkap"].astype(str).str.lower().str.contains(query, na=False)]
+    elif search_category == "Jabatan":
+        df_display = df_display[df_display["Jabatan"].astype(str).str.lower().str.contains(query, na=False)]
+    elif search_category == "Cost Center":
+        df_display = df_display[df_display["Cost Center"].astype(str).str.lower().str.contains(query, na=False)]
+    else: # Semua Kolom
+        mask_name = df_display["Nama Lengkap"].astype(str).str.lower().str.contains(query, na=False)
+        mask_role = df_display["Jabatan"].astype(str).str.lower().str.contains(query, na=False)
+        mask_cc = df_display["Cost Center"].astype(str).str.lower().str.contains(query, na=False)
+        df_display = df_display[mask_name | mask_role | mask_cc]
 
 # Tabel Tampilan Karyawan
 if df_display.empty:
@@ -252,12 +274,12 @@ if is_admin and not st.session_state.employees.empty:
 
             if btn_save:
                 st.session_state.employees.loc[emp_idx, ["Nama Lengkap", "Jabatan", "Cost Center", "Tanggal Bergabung", "Akhir Kontrak"]] = [e_name, e_role, e_cc, e_join, e_end]
-                save_data(st.session_state.employees) # Simpan ke Google Sheets
+                save_data(st.session_state.employees)
                 st.success("Data berhasil diperbarui!")
                 st.rerun()
 
             if btn_del:
                 updated_df = st.session_state.employees.drop(emp_idx).reset_index(drop=True)
-                save_data(updated_df) # Simpan ke Google Sheets
+                save_data(updated_df)
                 st.success("Data karyawan berhasil dihapus!")
                 st.rerun()
