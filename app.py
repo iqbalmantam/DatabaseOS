@@ -11,12 +11,15 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- SEMBUNYIKAN HEADER & MENU GITHUB / FORK ---
+# --- SEMBUNYIKAN MENU GITHUB & FORK (SIDEBAR TETAP BISA DIBUKA) ---
 st.markdown(
     """
     <style>
-    header[data-testid="stHeader"] {
+    div[data-testid="stToolbar"] {
         visibility: hidden;
+    }
+    button[data-testid="stSidebarCollapseButton"] {
+        visibility: visible !important;
     }
     </style>
     """,
