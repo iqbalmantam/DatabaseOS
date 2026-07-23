@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 from datetime import date
+from fpdf import FPDF
 
 # Set Halaman Streamlit
 st.set_page_config(
@@ -23,7 +24,6 @@ def load_data():
         if df is not None and not df.empty:
             if "ID" in df.columns:
                 df["ID"] = df["ID"].astype(str)
-            # Mengubah nama kolom jika masih menggunakan header "Jabatan" lama
             if "Jabatan" in df.columns and "Posisi" not in df.columns:
                 df.rename(columns={"Jabatan": "Posisi"}, inplace=True)
         if "Site" not in df.columns:
@@ -37,6 +37,44 @@ def load_data():
 def save_data(df):
     conn.update(data=df)
     st.session_state.employees = df
+
+# Fungsi Helper Generator PDF
+def generate_pdf(df):
+    pdf = FPDF(orientation="L", unit="mm", format="A4") # Lanscape A4
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 16)
+    
+    # Title Header
+    pdf.cell(0, 10, "LAPORAN DATABASE KARYAWAN", ln=True, align="C")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 6, f"Dicetak Tanggal: {date.today().strftime('%d-%m-%Y')} | Total Karyawan: {len(df)}", ln=True, align="C")
+    pdf.ln(5)
+    
+    # Header Table
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_fill_color(230, 230, 230)
+    
+    # Column Widths (A4 Landscape total width ~ 277mm)
+    col_widths = [25, 55, 45, 30, 35, 35, 35]
+    headers = ["ID", "Nama Lengkap", "Posisi", "Cost Center", "Tgl Bergabung", "Akhir Kontrak", "Site"]
+    
+    for i, h in enumerate(headers):
+        pdf.cell(col_widths[i], 8, h, border=1, align="C", fill=True)
+    pdf.ln()
+    
+    # Table Content
+    pdf.set_font("Helvetica", "", 8)
+    for _, row in df.iterrows():
+        pdf.cell(col_widths[0], 7, str(row.get("ID", "")), border=1, align="C")
+        pdf.cell(col_widths[1], 7, str(row.get("Nama Lengkap", ""))[:30], border=1)
+        pdf.cell(col_widths[2], 7, str(row.get("Posisi", ""))[:25], border=1)
+        pdf.cell(col_widths[3], 7, str(row.get("Cost Center", "")), border=1, align="C")
+        pdf.cell(col_widths[4], 7, str(row.get("Tanggal Bergabung", "")), border=1, align="C")
+        pdf.cell(col_widths[5], 7, str(row.get("Akhir Kontrak", "")), border=1, align="C")
+        pdf.cell(col_widths[6], 7, str(row.get("Site", "")), border=1, align="C")
+        pdf.ln()
+        
+    return bytes(pdf.output())
 
 # Inisialisasi Data dari Google Sheets
 if "employees" not in st.session_state:
@@ -205,11 +243,11 @@ if is_admin:
                     else:
                         st.error("Tidak ada data baru yang ditambahkan (semua ID sudah terdaftar).")
 
-    # 3. Export Data CSV
+    # 3. Export Data CSV & PDF
     st.sidebar.markdown("---")
     csv_data = st.session_state.employees.to_csv(index=False).encode('utf-8-sig')
     st.sidebar.download_button(
-        label="📤 Ekspor Data (CSV)",
+        label="📤 Ekspor Semua Data (CSV)",
         data=csv_data,
         file_name="ekspor_database_karyawan.csv",
         mime="text/csv",
@@ -296,6 +334,21 @@ if search_query and not df_display.empty:
         mask_cc = df_display["Cost Center"].astype(str).str.lower().str.contains(query, na=False)
         mask_site = df_display["Site"].astype(str).str.lower().str.contains(query, na=False)
         df_display = df_display[mask_name | mask_role | mask_cc | mask_site]
+
+# Header Tabel & Tombol Cetak PDF
+col_tb_title, col_pdf_btn = st.columns([3, 1])
+with col_tb_title:
+    st.subheader("📋 Tabel Data Karyawan")
+with col_pdf_btn:
+    if not df_display.empty:
+        pdf_bytes = generate_pdf(df_display)
+        st.download_button(
+            label="📄 Cetak / Download PDF",
+            data=pdf_bytes,
+            file_name=f"Laporan_Karyawan_{date.today().strftime('%Y%m%d')}.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
 
 # Tabel Tampilan Karyawan
 if df_display.empty:
