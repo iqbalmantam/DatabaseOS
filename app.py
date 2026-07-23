@@ -20,14 +20,18 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 def load_data():
     try:
         df = conn.read(ttl=0)
-        if df is not None and not df.empty and "ID" in df.columns:
-            df["ID"] = df["ID"].astype(str)
+        if df is not None and not df.empty:
+            if "ID" in df.columns:
+                df["ID"] = df["ID"].astype(str)
+            # Mengubah nama kolom jika masih menggunakan header "Jabatan" lama
+            if "Jabatan" in df.columns and "Posisi" not in df.columns:
+                df.rename(columns={"Jabatan": "Posisi"}, inplace=True)
         if "Site" not in df.columns:
             df["Site"] = ""
         return df
     except Exception as e:
         st.error(f"Gagal terhubung ke Google Sheets: {e}")
-        return pd.DataFrame(columns=["ID", "Nama Lengkap", "Jabatan", "Cost Center", "Tanggal Bergabung", "Akhir Kontrak", "Site"])
+        return pd.DataFrame(columns=["ID", "Nama Lengkap", "Posisi", "Cost Center", "Tanggal Bergabung", "Akhir Kontrak", "Site"])
 
 # Fungsi Menyimpan Data ke Google Sheets
 def save_data(df):
@@ -96,7 +100,7 @@ if is_admin:
             auto_id = generate_next_id()
             new_id = st.text_input("ID Karyawan", value=auto_id)
             new_name = st.text_input("Nama Lengkap")
-            new_role = st.text_input("Jabatan")
+            new_role = st.text_input("Posisi")
             new_cc = st.text_input("Cost Center", placeholder="CC-101")
             new_join = st.date_input("Tanggal Bergabung", value=date.today())
             new_end = st.date_input("Akhir Kontrak", value=date.today())
@@ -115,7 +119,7 @@ if is_admin:
                     new_row = {
                         "ID": clean_id,
                         "Nama Lengkap": new_name,
-                        "Jabatan": new_role,
+                        "Posisi": new_role,
                         "Cost Center": new_cc,
                         "Tanggal Bergabung": new_join.strftime("%Y-%m-%d"),
                         "Akhir Kontrak": new_end.strftime("%Y-%m-%d"),
@@ -137,6 +141,8 @@ if is_admin:
                     try:
                         df_import = pd.read_csv(uploaded_file, dtype={"ID": str})
                         df_import.columns = [c.strip() for c in df_import.columns]
+                        if "Jabatan" in df_import.columns:
+                            df_import.rename(columns={"Jabatan": "Posisi"}, inplace=True)
                         
                         existing_ids = set(str(x).strip().lower() for x in st.session_state.employees["ID"].values)
                         initial_count = len(df_import)
@@ -181,7 +187,7 @@ if is_admin:
                             
                             if emp_id.lower() not in existing_ids:
                                 added_rows.append({
-                                    "ID": emp_id, "Nama Lengkap": name, "Jabatan": role_title,
+                                    "ID": emp_id, "Nama Lengkap": name, "Posisi": role_title,
                                     "Cost Center": cc, "Tanggal Bergabung": join_d, "Akhir Kontrak": end_d,
                                     "Site": site_val
                                 })
@@ -220,37 +226,40 @@ else:
 # --- BAGIAN FITUR SUMMARY / RINGKASAN DATA ---
 with st.expander("📊 **Ringkasan Data Karyawan (Summary)**", expanded=False):
     if not st.session_state.employees.empty:
-        tab_jabatan, tab_cc, tab_site = st.tabs(["📌 Berdasarkan Jabatan", "💳 Berdasarkan Cost Center", "🏢 Berdasarkan Site"])
+        tab_posisi, tab_cc, tab_site = st.tabs(["📌 Berdasarkan Posisi", "💳 Berdasarkan Cost Center", "🏢 Berdasarkan Site"])
         
-        # 1. Summary Jabatan
-        with tab_jabatan:
-            df_role = st.session_state.employees["Jabatan"].value_counts().reset_index()
-            df_role.columns = ["Jabatan", "Jumlah Karyawan"]
-            col_t1, col_g1 = st.columns([1, 1])
-            with col_t1:
-                st.dataframe(df_role, use_container_width=True)
-            with col_g1:
-                st.bar_chart(df_role.set_index("Jabatan"))
+        # 1. Summary Posisi
+        with tab_posisi:
+            if "Posisi" in st.session_state.employees.columns:
+                df_role = st.session_state.employees["Posisi"].value_counts().reset_index()
+                df_role.columns = ["Posisi", "Jumlah Karyawan"]
+                col_t1, col_g1 = st.columns([1, 1])
+                with col_t1:
+                    st.dataframe(df_role, use_container_width=True)
+                with col_g1:
+                    st.bar_chart(df_role.set_index("Posisi"))
                 
         # 2. Summary Cost Center
         with tab_cc:
-            df_cc = st.session_state.employees["Cost Center"].value_counts().reset_index()
-            df_cc.columns = ["Cost Center", "Jumlah Karyawan"]
-            col_t2, col_g2 = st.columns([1, 1])
-            with col_t2:
-                st.dataframe(df_cc, use_container_width=True)
-            with col_g2:
-                st.bar_chart(df_cc.set_index("Cost Center"))
+            if "Cost Center" in st.session_state.employees.columns:
+                df_cc = st.session_state.employees["Cost Center"].value_counts().reset_index()
+                df_cc.columns = ["Cost Center", "Jumlah Karyawan"]
+                col_t2, col_g2 = st.columns([1, 1])
+                with col_t2:
+                    st.dataframe(df_cc, use_container_width=True)
+                with col_g2:
+                    st.bar_chart(df_cc.set_index("Cost Center"))
                 
         # 3. Summary Site
         with tab_site:
-            df_site = st.session_state.employees["Site"].replace("", "Belum Diisi").value_counts().reset_index()
-            df_site.columns = ["Site", "Jumlah Karyawan"]
-            col_t3, col_g3 = st.columns([1, 1])
-            with col_t3:
-                st.dataframe(df_site, use_container_width=True)
-            with col_g3:
-                st.bar_chart(df_site.set_index("Site"))
+            if "Site" in st.session_state.employees.columns:
+                df_site = st.session_state.employees["Site"].replace("", "Belum Diisi").value_counts().reset_index()
+                df_site.columns = ["Site", "Jumlah Karyawan"]
+                col_t3, col_g3 = st.columns([1, 1])
+                with col_t3:
+                    st.dataframe(df_site, use_container_width=True)
+                with col_g3:
+                    st.bar_chart(df_site.set_index("Site"))
     else:
         st.write("Belum ada data untuk ditampilkan ringkasannya.")
 
@@ -262,7 +271,7 @@ col_cat, col_src = st.columns([1, 3])
 with col_cat:
     search_category = st.selectbox(
         "Cari Berdasarkan:", 
-        ["Semua Kolom", "Nama Lengkap", "Jabatan", "Cost Center", "Site"]
+        ["Semua Kolom", "Nama Lengkap", "Posisi", "Cost Center", "Site"]
     )
 
 with col_src:
@@ -275,15 +284,15 @@ if search_query and not df_display.empty:
     
     if search_category == "Nama Lengkap":
         df_display = df_display[df_display["Nama Lengkap"].astype(str).str.lower().str.contains(query, na=False)]
-    elif search_category == "Jabatan":
-        df_display = df_display[df_display["Jabatan"].astype(str).str.lower().str.contains(query, na=False)]
+    elif search_category == "Posisi":
+        df_display = df_display[df_display["Posisi"].astype(str).str.lower().str.contains(query, na=False)]
     elif search_category == "Cost Center":
         df_display = df_display[df_display["Cost Center"].astype(str).str.lower().str.contains(query, na=False)]
     elif search_category == "Site":
         df_display = df_display[df_display["Site"].astype(str).str.lower().str.contains(query, na=False)]
     else: # Semua Kolom
         mask_name = df_display["Nama Lengkap"].astype(str).str.lower().str.contains(query, na=False)
-        mask_role = df_display["Jabatan"].astype(str).str.lower().str.contains(query, na=False)
+        mask_role = df_display["Posisi"].astype(str).str.lower().str.contains(query, na=False) if "Posisi" in df_display.columns else False
         mask_cc = df_display["Cost Center"].astype(str).str.lower().str.contains(query, na=False)
         mask_site = df_display["Site"].astype(str).str.lower().str.contains(query, na=False)
         df_display = df_display[mask_name | mask_role | mask_cc | mask_site]
@@ -309,7 +318,7 @@ if is_admin and not st.session_state.employees.empty:
         with st.form("edit_form"):
             st.write(f"Editing: **{row['Nama Lengkap']}** (ID: `{row['ID']}`)")
             e_name = st.text_input("Nama Lengkap", value=row["Nama Lengkap"])
-            e_role = st.text_input("Jabatan", value=row["Jabatan"])
+            e_role = st.text_input("Posisi", value=row.get("Posisi", ""))
             e_cc = st.text_input("Cost Center", value=row["Cost Center"])
             e_join = st.text_input("Tanggal Bergabung (YYYY-MM-DD)", value=row["Tanggal Bergabung"])
             e_end = st.text_input("Akhir Kontrak (YYYY-MM-DD)", value=row["Akhir Kontrak"])
@@ -322,7 +331,7 @@ if is_admin and not st.session_state.employees.empty:
                 btn_del = st.form_submit_button("🗑️ Hapus Karyawan")
 
             if btn_save:
-                st.session_state.employees.loc[emp_idx, ["Nama Lengkap", "Jabatan", "Cost Center", "Tanggal Bergabung", "Akhir Kontrak", "Site"]] = [e_name, e_role, e_cc, e_join, e_end, e_site]
+                st.session_state.employees.loc[emp_idx, ["Nama Lengkap", "Posisi", "Cost Center", "Tanggal Bergabung", "Akhir Kontrak", "Site"]] = [e_name, e_role, e_cc, e_join, e_end, e_site]
                 save_data(st.session_state.employees)
                 st.success("Data berhasil diperbarui!")
                 st.rerun()
