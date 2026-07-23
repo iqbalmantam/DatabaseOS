@@ -11,7 +11,7 @@ st.set_page_config(
 
 # --- PIN / PASSWORD ADMINISTRATOR ---
 # Anda bisa mengubah PIN ini sesuai kebutuhan
-ADMIN_PIN = "1234"
+ADMIN_PIN = "2273"
 
 # --- INITIALIZATION STATE (Database Sementara) ---
 if "employees" not in st.session_state:
