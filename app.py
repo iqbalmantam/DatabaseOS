@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from streamlit_gsheets import GSheetsConnection
 from datetime import date
 
 # Set Halaman Streamlit
@@ -10,30 +11,44 @@ st.set_page_config(
 )
 
 # --- PIN / PASSWORD ADMINISTRATOR ---
-# Anda bisa mengubah PIN ini sesuai kebutuhan
 ADMIN_PIN = "2273"
 
-# --- INITIALIZATION STATE (Database Sementara) ---
+# --- KONEKSI GOOGLE SHEETS ---
+conn = st.connection("gsheets", type=GSheetsConnection)
+
+# Fungsi Membaca Data (ttl=0 memaksa Streamlit selalu membaca data terbaru dari Google Sheets)
+def load_data():
+    try:
+        df = conn.read(ttl=0)
+        if df is not None and not df.empty and "ID" in df.columns:
+            df["ID"] = df["ID"].astype(str)
+        return df
+    except Exception as e:
+        st.error(f"Gagal terhubung ke Google Sheets: {e}")
+        return pd.DataFrame(columns=["ID", "Nama Lengkap", "Jabatan", "Cost Center", "Tanggal Bergabung", "Akhir Kontrak"])
+
+# Fungsi Menyimpan Data ke Google Sheets
+def save_data(df):
+    conn.update(data=df)
+    st.session_state.employees = df
+
+# Inisialisasi Data dari Google Sheets
 if "employees" not in st.session_state:
-    st.session_state.employees = pd.DataFrame([
-        {"ID": "EMP-001", "Nama Lengkap": "Budi Santoso", "Jabatan": "Software Engineer", "Cost Center": "CC-101", "Tanggal Bergabung": "2024-01-15", "Akhir Kontrak": "2025-01-15"},
-        {"ID": "EMP-002", "Nama Lengkap": "Siti Rahma", "Jabatan": "HR Generalist", "Cost Center": "CC-202", "Tanggal Bergabung": "2023-06-01", "Akhir Kontrak": "2024-06-01"},
-        {"ID": "EMP-003", "Nama Lengkap": "Andi Wijaya", "Jabatan": "Digital Marketer", "Cost Center": "CC-303", "Tanggal Bergabung": "2024-03-10", "Akhir Kontrak": "2025-03-10"},
-        {"ID": "EMP-004", "Nama Lengkap": "Rina Permata", "Jabatan": "Financial Analyst", "Cost Center": "CC-404", "Tanggal Bergabung": "2022-11-01", "Akhir Kontrak": "2024-11-01"}
-    ])
+    st.session_state.employees = load_data()
 
 # Helper function untuk generate ID otomatis
 def generate_next_id():
     df = st.session_state.employees
     max_num = 0
-    for emp_id in df["ID"]:
-        if str(emp_id).startswith("EMP-"):
-            try:
-                num = int(str(emp_id).split("-")[1])
-                if num > max_num:
-                    max_num = num
-            except ValueError:
-                pass
+    if not df.empty and "ID" in df.columns:
+        for emp_id in df["ID"]:
+            if str(emp_id).startswith("EMP-"):
+                try:
+                    num = int(str(emp_id).split("-")[1])
+                    if num > max_num:
+                        max_num = num
+                except ValueError:
+                    pass
     return f"EMP-{str(max_num + 1).zfill(3)}"
 
 
@@ -68,7 +83,12 @@ if is_admin:
     st.sidebar.markdown("---")
     st.sidebar.header("⚡ Kontrol Administrator")
 
-    # 1. Tambah Karyawan Baru (Dengan Validasi ID Double)
+    # Tombol Refresh Manual dari Google Sheets
+    if st.sidebar.button("🔄 Sync / Refresh Data"):
+        st.session_state.employees = load_data()
+        st.rerun()
+
+    # 1. Tambah Karyawan Baru
     with st.sidebar.expander("➕ Tambah Karyawan Baru", expanded=False):
         with st.form("add_employee_form", clear_on_submit=True):
             auto_id = generate_next_id()
@@ -81,14 +101,12 @@ if is_admin:
             
             submit_btn = st.form_submit_button("Simpan Karyawan")
             if submit_btn:
-                # Normalisasi ID untuk pengecekan aman
                 clean_id = new_id.strip()
-                existing_ids = [str(x).strip().lower() for x in st.session_state.employees["ID"].values]
+                existing_ids = [str(x).strip().lower() for x in st.session_state.employees["ID"].values] if "ID" in st.session_state.employees.columns else []
                 
                 if not clean_id or not new_name or not new_role or not new_cc:
                     st.error("Mohon isi semua kolom yang wajib!")
                 elif clean_id.lower() in existing_ids:
-                    # CEK DENGAN ID DOUBLE (DITOLAK)
                     st.error(f"❌ GAGAL: ID '{clean_id}' sudah digunakan! Gunakan ID yang lain.")
                 else:
                     new_row = {
@@ -99,11 +117,12 @@ if is_admin:
                         "Tanggal Bergabung": new_join.strftime("%Y-%m-%d"),
                         "Akhir Kontrak": new_end.strftime("%Y-%m-%d")
                     }
-                    st.session_state.employees = pd.concat([st.session_state.employees, pd.DataFrame([new_row])], ignore_index=True)
-                    st.success(f"✅ Karyawan dengan ID '{clean_id}' berhasil ditambahkan!")
+                    updated_df = pd.concat([st.session_state.employees, pd.DataFrame([new_row])], ignore_index=True)
+                    save_data(updated_df) # Simpan ke Google Sheets
+                    st.success(f"✅ ID '{clean_id}' berhasil ditambahkan ke Google Sheets!")
                     st.rerun()
 
-    # 2. Bulk Import Data (Dengan Filter ID Double Automatic Skip)
+    # 2. Bulk Import Data
     with st.sidebar.expander("📥 Import Banyak Data", expanded=False):
         import_type = st.radio("Metode Import:", ["File CSV", "Tempel Teks (Excel/TSV)"])
         
@@ -112,10 +131,9 @@ if is_admin:
             if uploaded_file is not None:
                 if st.button("Mulai Import File"):
                     try:
-                        df_import = pd.read_csv(uploaded_file)
+                        df_import = pd.read_csv(uploaded_file, dtype={"ID": str})
                         df_import.columns = [c.strip() for c in df_import.columns]
                         
-                        # Filter ID double
                         existing_ids = set(str(x).strip().lower() for x in st.session_state.employees["ID"].values)
                         initial_count = len(df_import)
                         
@@ -124,7 +142,8 @@ if is_admin:
                         skipped_count = initial_count - added_count
                         
                         if added_count > 0:
-                            st.session_state.employees = pd.concat([st.session_state.employees, df_import_filtered], ignore_index=True)
+                            updated_df = pd.concat([st.session_state.employees, df_import_filtered], ignore_index=True)
+                            save_data(updated_df) # Simpan ke Google Sheets
                             st.success(f"Berhasil mengimpor {added_count} data!")
                             if skipped_count > 0:
                                 st.warning(f"Dilewati {skipped_count} data karena ID duplikat.")
@@ -143,7 +162,7 @@ if is_admin:
             if st.button("Mulai Import Teks"):
                 if pasted_text.strip():
                     lines = pasted_text.strip().split("\n")
-                    added_count = 0
+                    added_rows = []
                     skipped_count = 0
                     existing_ids = set(str(x).strip().lower() for x in st.session_state.employees["ID"].values)
 
@@ -155,20 +174,19 @@ if is_admin:
                             join_d = cols[4] if len(cols) > 4 else ""
                             end_d = cols[5] if len(cols) > 5 else ""
                             
-                            # Cek ID Duplikat
                             if emp_id.lower() not in existing_ids:
-                                new_row = {
+                                added_rows.append({
                                     "ID": emp_id, "Nama Lengkap": name, "Jabatan": role_title,
                                     "Cost Center": cc, "Tanggal Bergabung": join_d, "Akhir Kontrak": end_d
-                                }
-                                st.session_state.employees = pd.concat([st.session_state.employees, pd.DataFrame([new_row])], ignore_index=True)
+                                })
                                 existing_ids.add(emp_id.lower())
-                                added_count += 1
                             else:
                                 skipped_count += 1
 
-                    if added_count > 0:
-                        st.success(f"Berhasil menambahkan {added_count} data baru!")
+                    if added_rows:
+                        updated_df = pd.concat([st.session_state.employees, pd.DataFrame(added_rows)], ignore_index=True)
+                        save_data(updated_df) # Simpan ke Google Sheets
+                        st.success(f"Berhasil menambahkan {len(added_rows)} data baru!")
                         if skipped_count > 0:
                             st.warning(f"Dilewati {skipped_count} data karena ID duplikat.")
                         st.rerun()
@@ -186,11 +204,10 @@ if is_admin:
         use_container_width=True
     )
 
-# --- HALAMAN UTAMA (Tampilan Data untuk Semua Pengguna) ---
+# --- HALAMAN UTAMA ---
 
-# Status Banner Mode Akses
 if is_admin:
-    st.info("🔓 **Mode Akses:** Administrator (Dapat menambah, mengubah, atau menghapus data)")
+    st.info("🔓 **Mode Akses:** Administrator (Tersinkronisasi dengan Google Sheets)")
 else:
     st.info("👁️ **Mode Akses:** Umum / Guest (Hanya dapat melihat dan mencari data)")
 
@@ -198,8 +215,8 @@ else:
 search_query = st.text_input("🔍 Cari nama karyawan...", "")
 
 df_display = st.session_state.employees.copy()
-if search_query:
-    df_display = df_display[df_display["Nama Lengkap"].str.contains(search_query, case=False, na=False)]
+if search_query and not df_display.empty:
+    df_display = df_display[df_display["Nama Lengkap"].astype(str).str.contains(search_query, case=False, na=False)]
 
 # Tabel Tampilan Karyawan
 if df_display.empty:
@@ -208,8 +225,8 @@ else:
     st.dataframe(df_display, use_container_width=True)
 
 
-# --- EDIT / HAPUS SATUAN (HANYA AKTIF DI MODE ADMINISTRATOR) ---
-if is_admin:
+# --- EDIT / HAPUS SATUAN ---
+if is_admin and not st.session_state.employees.empty:
     st.divider()
     st.subheader("🛠️ Kelola / Edit / Hapus Data Karyawan")
     
@@ -235,10 +252,12 @@ if is_admin:
 
             if btn_save:
                 st.session_state.employees.loc[emp_idx, ["Nama Lengkap", "Jabatan", "Cost Center", "Tanggal Bergabung", "Akhir Kontrak"]] = [e_name, e_role, e_cc, e_join, e_end]
+                save_data(st.session_state.employees) # Simpan ke Google Sheets
                 st.success("Data berhasil diperbarui!")
                 st.rerun()
 
             if btn_del:
-                st.session_state.employees = st.session_state.employees.drop(emp_idx).reset_index(drop=True)
+                updated_df = st.session_state.employees.drop(emp_idx).reset_index(drop=True)
+                save_data(updated_df) # Simpan ke Google Sheets
                 st.success("Data karyawan berhasil dihapus!")
                 st.rerun()
