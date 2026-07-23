@@ -11,14 +11,24 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- SEMBUNYIKAN MENU GITHUB & FORK (SIDEBAR TETAP BISA DIBUKA) ---
+# --- SEMBUNYIKAN MENU KANAN ATAS (GITHUB/FORK), TETAP TAMPILKAN TOMBOL SIDEBAR ---
 st.markdown(
     """
     <style>
-    div[data-testid="stToolbar"] {
-        visibility: hidden;
+    /* Sembunyikan toolbar aksi di kanan atas (GitHub, Fork, Menu Titik Tiga) */
+    div[data-testid="stToolbarActions"] {
+        display: none !important;
     }
-    button[data-testid="stSidebarCollapseButton"] {
+    div[data-testid="stDecoration"] {
+        display: none !important;
+    }
+    #MainMenu {
+        visibility: hidden !important;
+    }
+    
+    /* Pastikan tombol pembuka sidebar (kiri atas) tetap tampil & bisa diklik di HP */
+    [data-testid="stCollapsedControl"] {
+        display: flex !important;
         visibility: visible !important;
     }
     </style>
