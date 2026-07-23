@@ -16,16 +16,18 @@ ADMIN_PIN = "2273"
 # --- KONEKSI GOOGLE SHEETS ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Fungsi Membaca Data (ttl=0 memaksa Streamlit selalu membaca data terbaru dari Google Sheets)
+# Fungsi Membaca Data
 def load_data():
     try:
         df = conn.read(ttl=0)
         if df is not None and not df.empty and "ID" in df.columns:
             df["ID"] = df["ID"].astype(str)
+        if "Site" not in df.columns:
+            df["Site"] = ""
         return df
     except Exception as e:
         st.error(f"Gagal terhubung ke Google Sheets: {e}")
-        return pd.DataFrame(columns=["ID", "Nama Lengkap", "Jabatan", "Cost Center", "Tanggal Bergabung", "Akhir Kontrak"])
+        return pd.DataFrame(columns=["ID", "Nama Lengkap", "Jabatan", "Cost Center", "Tanggal Bergabung", "Akhir Kontrak", "Site"])
 
 # Fungsi Menyimpan Data ke Google Sheets
 def save_data(df):
@@ -78,12 +80,12 @@ if role == "Administrator":
     else:
         st.sidebar.info("Masukkan PIN untuk membuka menu kontrol Administrator.")
 
-# --- SIDEBAR: MENU ADMIN (HANYA MUNCUL JIKA IS_ADMIN = TRUE) ---
+# --- SIDEBAR: MENU ADMIN ---
 if is_admin:
     st.sidebar.markdown("---")
     st.sidebar.header("⚡ Kontrol Administrator")
 
-    # Tombol Refresh Manual dari Google Sheets
+    # Tombol Refresh Manual
     if st.sidebar.button("🔄 Sync / Refresh Data"):
         st.session_state.employees = load_data()
         st.rerun()
@@ -98,6 +100,7 @@ if is_admin:
             new_cc = st.text_input("Cost Center", placeholder="CC-101")
             new_join = st.date_input("Tanggal Bergabung", value=date.today())
             new_end = st.date_input("Akhir Kontrak", value=date.today())
+            new_site = st.text_input("Site / Lokasi Kerja", placeholder="Contoh: Jakarta / Head Office")
             
             submit_btn = st.form_submit_button("Simpan Karyawan")
             if submit_btn:
@@ -115,7 +118,8 @@ if is_admin:
                         "Jabatan": new_role,
                         "Cost Center": new_cc,
                         "Tanggal Bergabung": new_join.strftime("%Y-%m-%d"),
-                        "Akhir Kontrak": new_end.strftime("%Y-%m-%d")
+                        "Akhir Kontrak": new_end.strftime("%Y-%m-%d"),
+                        "Site": new_site
                     }
                     updated_df = pd.concat([st.session_state.employees, pd.DataFrame([new_row])], ignore_index=True)
                     save_data(updated_df)
@@ -156,7 +160,7 @@ if is_admin:
         else: # Tempel Teks
             pasted_text = st.text_area(
                 "Tempel dari Excel (Tab / Comma separated)", 
-                placeholder="EMP-005\tBudi Santoso\tDeveloper\tCC-101\t2024-01-15\t2025-01-15",
+                placeholder="EMP-005\tBudi Santoso\tDeveloper\tCC-101\t2024-01-15\t2025-01-15\tJakarta",
                 height=150
             )
             if st.button("Mulai Import Teks"):
@@ -173,11 +177,13 @@ if is_admin:
                             emp_id, name, role_title, cc = cols[0], cols[1], cols[2], cols[3]
                             join_d = cols[4] if len(cols) > 4 else ""
                             end_d = cols[5] if len(cols) > 5 else ""
+                            site_val = cols[6] if len(cols) > 6 else ""
                             
                             if emp_id.lower() not in existing_ids:
                                 added_rows.append({
                                     "ID": emp_id, "Nama Lengkap": name, "Jabatan": role_title,
-                                    "Cost Center": cc, "Tanggal Bergabung": join_d, "Akhir Kontrak": end_d
+                                    "Cost Center": cc, "Tanggal Bergabung": join_d, "Akhir Kontrak": end_d,
+                                    "Site": site_val
                                 })
                                 existing_ids.add(emp_id.lower())
                             else:
@@ -211,13 +217,52 @@ if is_admin:
 else:
     st.info("👁️ **Mode Akses:** Umum / Guest (Hanya dapat melihat dan mencari data)")
 
-# --- FITUR PENCARIAN & FILTER (OPSI 2) ---
+# --- BAGIAN FITUR SUMMARY / RINGKASAN DATA ---
+with st.expander("📊 **Ringkasan Data Karyawan (Summary)**", expanded=False):
+    if not st.session_state.employees.empty:
+        tab_jabatan, tab_cc, tab_site = st.tabs(["📌 Berdasarkan Jabatan", "💳 Berdasarkan Cost Center", "🏢 Berdasarkan Site"])
+        
+        # 1. Summary Jabatan
+        with tab_jabatan:
+            df_role = st.session_state.employees["Jabatan"].value_counts().reset_index()
+            df_role.columns = ["Jabatan", "Jumlah Karyawan"]
+            col_t1, col_g1 = st.columns([1, 1])
+            with col_t1:
+                st.dataframe(df_role, use_container_width=True)
+            with col_g1:
+                st.bar_chart(df_role.set_index("Jabatan"))
+                
+        # 2. Summary Cost Center
+        with tab_cc:
+            df_cc = st.session_state.employees["Cost Center"].value_counts().reset_index()
+            df_cc.columns = ["Cost Center", "Jumlah Karyawan"]
+            col_t2, col_g2 = st.columns([1, 1])
+            with col_t2:
+                st.dataframe(df_cc, use_container_width=True)
+            with col_g2:
+                st.bar_chart(df_cc.set_index("Cost Center"))
+                
+        # 3. Summary Site
+        with tab_site:
+            df_site = st.session_state.employees["Site"].replace("", "Belum Diisi").value_counts().reset_index()
+            df_site.columns = ["Site", "Jumlah Karyawan"]
+            col_t3, col_g3 = st.columns([1, 1])
+            with col_t3:
+                st.dataframe(df_site, use_container_width=True)
+            with col_g3:
+                st.bar_chart(df_site.set_index("Site"))
+    else:
+        st.write("Belum ada data untuk ditampilkan ringkasannya.")
+
+st.divider()
+
+# --- FITUR PENCARIAN & FILTER ---
 col_cat, col_src = st.columns([1, 3])
 
 with col_cat:
     search_category = st.selectbox(
         "Cari Berdasarkan:", 
-        ["Semua Kolom", "Nama Lengkap", "Jabatan", "Cost Center"]
+        ["Semua Kolom", "Nama Lengkap", "Jabatan", "Cost Center", "Site"]
     )
 
 with col_src:
@@ -234,11 +279,14 @@ if search_query and not df_display.empty:
         df_display = df_display[df_display["Jabatan"].astype(str).str.lower().str.contains(query, na=False)]
     elif search_category == "Cost Center":
         df_display = df_display[df_display["Cost Center"].astype(str).str.lower().str.contains(query, na=False)]
+    elif search_category == "Site":
+        df_display = df_display[df_display["Site"].astype(str).str.lower().str.contains(query, na=False)]
     else: # Semua Kolom
         mask_name = df_display["Nama Lengkap"].astype(str).str.lower().str.contains(query, na=False)
         mask_role = df_display["Jabatan"].astype(str).str.lower().str.contains(query, na=False)
         mask_cc = df_display["Cost Center"].astype(str).str.lower().str.contains(query, na=False)
-        df_display = df_display[mask_name | mask_role | mask_cc]
+        mask_site = df_display["Site"].astype(str).str.lower().str.contains(query, na=False)
+        df_display = df_display[mask_name | mask_role | mask_cc | mask_site]
 
 # Tabel Tampilan Karyawan
 if df_display.empty:
@@ -265,6 +313,7 @@ if is_admin and not st.session_state.employees.empty:
             e_cc = st.text_input("Cost Center", value=row["Cost Center"])
             e_join = st.text_input("Tanggal Bergabung (YYYY-MM-DD)", value=row["Tanggal Bergabung"])
             e_end = st.text_input("Akhir Kontrak (YYYY-MM-DD)", value=row["Akhir Kontrak"])
+            e_site = st.text_input("Site / Lokasi Kerja", value=row.get("Site", ""))
 
             col_save, col_del = st.columns(2)
             with col_save:
@@ -273,7 +322,7 @@ if is_admin and not st.session_state.employees.empty:
                 btn_del = st.form_submit_button("🗑️ Hapus Karyawan")
 
             if btn_save:
-                st.session_state.employees.loc[emp_idx, ["Nama Lengkap", "Jabatan", "Cost Center", "Tanggal Bergabung", "Akhir Kontrak"]] = [e_name, e_role, e_cc, e_join, e_end]
+                st.session_state.employees.loc[emp_idx, ["Nama Lengkap", "Jabatan", "Cost Center", "Tanggal Bergabung", "Akhir Kontrak", "Site"]] = [e_name, e_role, e_cc, e_join, e_end, e_site]
                 save_data(st.session_state.employees)
                 st.success("Data berhasil diperbarui!")
                 st.rerun()
