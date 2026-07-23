@@ -60,7 +60,7 @@ def generate_next_id():
 
 # --- HEADER ---
 st.title("Employee Database Manager")
-st.caption("@iqbalmantam, 2026.")
+st.caption("Created by iqbalmantam")
 
 # Metric Total Karyawan
 total_karyawan = len(st.session_state.employees)
