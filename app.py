@@ -11,6 +11,18 @@ st.set_page_config(
     layout="wide"
 )
 
+# --- SEMBUNYIKAN HEADER & MENU GITHUB / FORK ---
+st.markdown(
+    """
+    <style>
+    header[data-testid="stHeader"] {
+        visibility: hidden;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 # --- PIN / PASSWORD ADMINISTRATOR ---
 ADMIN_PIN = "2273"
 
