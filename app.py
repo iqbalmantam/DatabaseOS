@@ -1,7 +1,7 @@
 from datetime import date
 import io
 from fpdf import FPDF
-from google import genai
+import google.generativeai as genai
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -776,15 +776,16 @@ with st.expander(
                 if not api_key:
                     st.error(
                         "⚠️ API Key Gemini belum dikonfigurasi di Streamlit Secrets"
-                        " (GEMINI_API_KEY). Solusi: Tambahkan `GEMINI_API_KEY = \"...\"` di"
-                        " `.streamlit/secrets.toml` atau di Streamlit Cloud Settings >"
-                        " Secrets."
+                        " (GEMINI_API_KEY)."
                     )
                 else:
                     with st.chat_message("assistant"):
                         with st.spinner("Sedang menganalisis data..."):
                             try:
-                                # Format Data Master sebagai Konteks untuk AI
+                                # Konfigurasi SDK google-generativeai stabil
+                                genai.configure(api_key=api_key)
+
+                                # Format Data Master sebagai Konteks
                                 csv_context = df_ana.to_csv(index=False)
                                 system_instruction = f"""
                                 Anda adalah Asisten AI HR untuk 'Employee Database Manager'.
@@ -797,10 +798,10 @@ with st.expander(
                                 Jawablah dalam bahasa Indonesia dengan format yang rapi dan mudah dibaca.
                                 """
 
-                                client = genai.Client(api_key=api_key)
-                                response = client.models.generate_content(
-                                    model="gemini-1.5-flash",
-                                    contents=f"{system_instruction}\n\nPertanyaan Pengguna: {prompt}",
+                                # Inisialisasi Model & Generate
+                                model = genai.GenerativeModel("gemini-1.5-flash")
+                                response = model.generate_content(
+                                    f"{system_instruction}\n\nPertanyaan Pengguna: {prompt}"
                                 )
 
                                 ai_reply = response.text
