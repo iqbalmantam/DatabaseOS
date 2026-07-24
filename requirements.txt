@@ -1,7 +1,6 @@
 streamlit
-pandas
-plotly
-fpdf
-openpyxl
 st-gsheets-connection
-google-generativeai
+pandas
+openpyxl
+fpdf2
+plotly
