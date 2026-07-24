@@ -1,6 +1,12 @@
 from datetime import date
-import pandas as pd
+import io
 from fpdf import FPDF
+import openpyxl
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 
@@ -9,23 +15,14 @@ st.set_page_config(
     page_title="Employee Database Manager", page_icon="👥", layout="wide"
 )
 
-# --- SEMBUNYIKAN MENU KANAN ATAS (GITHUB/FORK), TETAP TAMPILKAN TOMBOL SIDEBAR ---
+# --- SEMBUNYIKAN MENU KANAN ATAS ---
 st.markdown(
     """
     <style>
-    div[data-testid="stToolbarActions"] {
-        display: none !important;
-    }
-    div[data-testid="stDecoration"] {
-        display: none !important;
-    }
-    #MainMenu {
-        visibility: hidden !important;
-    }
-    [data-testid="stCollapsedControl"] {
-        display: flex !important;
-        visibility: visible !important;
-    }
+    div[data-testid="stToolbarActions"] { display: none !important; }
+    div[data-testid="stDecoration"] { display: none !important; }
+    #MainMenu { visibility: hidden !important; }
+    [data-testid="stCollapsedControl"] { display: flex !important; visibility: visible !important; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -100,13 +97,13 @@ def load_snapshot_data():
     return pd.DataFrame()
 
 
-# Fungsi Menyimpan Data Master ke Google Sheets
+# Fungsi Menyimpan Data Master
 def save_data(df):
   conn.update(worksheet="Master_Karyawan", data=df)
   st.session_state.employees = df
 
 
-# Fungsi Generator PDF
+# Generator PDF
 def generate_pdf(df):
   pdf = FPDF(orientation="L", unit="mm", format="A4")
   pdf.add_page()
@@ -186,12 +183,92 @@ def generate_pdf(df):
   return bytes(pdf.output())
 
 
+# Generator Excel Formatted (.xlsx)
+def generate_excel_formatted(df):
+  wb = openpyxl.Workbook()
+  ws = wb.active
+  ws.title = "Rekap Karyawan"
+
+  # Style Formats
+  header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+  header_fill = PatternFill(
+      start_color="1F4E79", end_color="1F4E79", fill_type="solid"
+  )
+  data_font = Font(name="Calibri", size=10)
+  border_thin = Side(border_style="thin", color="D9D9D9")
+  border_box = Border(
+      left=border_thin, right=border_thin, top=border_thin, bottom=border_thin
+  )
+
+  # Judul Laporan
+  ws.merge_cells("A1:J1")
+  ws["A1"] = "LAPORAN DATABASE KARYAWAN"
+  ws["A1"].font = Font(name="Calibri", size=14, bold=True, color="1F4E79")
+  ws["A1"].alignment = Alignment(horizontal="left", vertical="center")
+
+  ws.merge_cells("A2:J2")
+  ws["A2"] = (
+      f"Tanggal Ekspor: {date.today().strftime('%d-%m-%Y')} | Total Record:"
+      f" {len(df)}"
+  )
+  ws["A2"].font = Font(name="Calibri", size=10, italic=True, color="595959")
+  ws.row_dimensions[1].height = 25
+  ws.row_dimensions[2].height = 18
+
+  # Write Header
+  headers = list(df.columns)
+  ws.append([])  # Row 3 kosong
+
+  ws.append(headers)  # Row 4
+  ws.row_dimensions[4].height = 24
+
+  for col_num, _ in enumerate(headers, 1):
+    cell = ws.cell(row=4, column=col_num)
+    cell.font = header_font
+    cell.fill = header_fill
+    cell.alignment = Alignment(horizontal="center", vertical="center")
+
+  # Write Data
+  for r_idx, row in df.iterrows():
+    row_data = list(row)
+    ws.append(row_data)
+    row_num = ws.max_row
+    ws.row_dimensions[row_num].height = 20
+
+    for c_idx in range(1, len(row_data) + 1):
+      cell = ws.cell(row=row_num, column=c_idx)
+      cell.font = data_font
+      cell.border = border_box
+      if headers[c_idx - 1] in [
+          "ID",
+          "Tanggal Bergabung",
+          "Akhir Kontrak",
+          "Tanggal Resign",
+          "Status",
+          "Terakhir Diperbarui",
+      ]:
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+  # Auto-fit Column Width
+  for col in ws.columns:
+    max_len = 0
+    col_letter = get_column_letter(col[0].column)
+    for cell in col:
+      if cell.row >= 4 and cell.value:
+        max_len = max(max_len, len(str(cell.value)))
+    ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+  output = io.BytesIO()
+  wb.save(output)
+  return output.getvalue()
+
+
 # Inisialisasi Data
 if "employees" not in st.session_state:
   st.session_state.employees = load_data()
 
 
-# Helper function generate ID otomatis
+# Helper function ID otomatis
 def generate_next_id():
   df = st.session_state.employees
   max_num = 0
@@ -247,16 +324,15 @@ if role == "Administrator":
     st.sidebar.success("Akses Administrator Aktif!")
     is_admin = True
   elif pin_input != "":
-    st.sidebar.error("PIN Salah! Anda berada dalam mode baca.")
+    st.sidebar.error("PIN Salah!")
   else:
-    st.sidebar.info("Masukkan PIN untuk membuka menu kontrol Administrator.")
+    st.sidebar.info("Masukkan PIN Administrator.")
 
 # --- SIDEBAR: MENU ADMIN ---
 if is_admin:
   st.sidebar.markdown("---")
   st.sidebar.header("⚡ Kontrol Administrator")
 
-  # Refresh Data
   if st.sidebar.button("🔄 Sync / Refresh Data"):
     st.session_state.employees = load_data()
     st.rerun()
@@ -297,9 +373,7 @@ if is_admin:
         if not clean_id or not new_name or not new_role or not new_cc:
           st.error("Mohon isi semua kolom yang wajib!")
         elif clean_id.lower() in existing_ids:
-          st.error(
-              f"❌ GAGAL: ID '{clean_id}' sudah digunakan! Gunakan ID yang lain."
-          )
+          st.error(f"❌ ID '{clean_id}' sudah digunakan!")
         else:
           new_row = {
               "ID": clean_id,
@@ -318,9 +392,7 @@ if is_admin:
               ignore_index=True,
           )
           save_data(updated_df)
-          st.success(
-              f"✅ ID '{clean_id}' berhasil ditambahkan ke Google Sheets!"
-          )
+          st.success(f"✅ ID '{clean_id}' berhasil ditambahkan!")
           st.rerun()
 
   # 2. Bulk Import Data
@@ -358,7 +430,6 @@ if is_admin:
                 .isin(existing_ids)
             ]
             added_count = len(df_import_filtered)
-            skipped_count = initial_count - added_count
 
             if added_count > 0:
               updated_df = pd.concat(
@@ -367,28 +438,18 @@ if is_admin:
               )
               save_data(updated_df)
               st.success(f"Berhasil mengimpor {added_count} data!")
-              if skipped_count > 0:
-                st.warning(f"Dilewati {skipped_count} data karena ID duplikat.")
               st.rerun()
             else:
-              st.error("Semua ID pada file sudah terdaftar di database!")
+              st.error("Semua ID pada file sudah terdaftar!")
           except Exception as e:
             st.error(f"Gagal membaca file: {e}")
 
-    else:  # Tempel Teks
-      pasted_text = st.text_area(
-          "Tempel dari Excel (Tab / Comma separated)",
-          placeholder=(
-              "EMP-005\tBudi"
-              " Santoso\tDeveloper\tCC-101\t2024-01-15\t2025-01-15\t-\tJakarta\tAktif"
-          ),
-          height=150,
-      )
+    else:
+      pasted_text = st.text_area("Tempel dari Excel", height=150)
       if st.button("Mulai Import Teks"):
         if pasted_text.strip():
           lines = pasted_text.strip().split("\n")
           added_rows = []
-          skipped_count = 0
           existing_ids = set(
               str(x).strip().lower()
               for x in st.session_state.employees["ID"].values
@@ -426,8 +487,6 @@ if is_admin:
                     "Terakhir Diperbarui": str(date.today()),
                 })
                 existing_ids.add(emp_id.lower())
-              else:
-                skipped_count += 1
 
           if added_rows:
             updated_df = pd.concat(
@@ -436,11 +495,7 @@ if is_admin:
             )
             save_data(updated_df)
             st.success(f"Berhasil menambahkan {len(added_rows)} data baru!")
-            if skipped_count > 0:
-              st.warning(f"Dilewati {skipped_count} data karena ID duplikat.")
             st.rerun()
-          else:
-            st.error("Tidak ada data baru yang ditambahkan.")
 
   # 3. KUNCI DATA SNAPSHOT BULANAN
   with st.sidebar.expander("📸 Freeze / Snapshot Bulanan", expanded=False):
@@ -452,10 +507,11 @@ if is_admin:
     if st.button(f"🔒 Kunci Data {selected_periode}"):
       try:
         df_curr = st.session_state.employees.copy()
-        if "Status" in df_curr.columns:
-          df_active = df_curr[df_curr["Status"] == "Aktif"].copy()
-        else:
-          df_active = df_curr.copy()
+        df_active = (
+            df_curr[df_curr["Status"] == "Aktif"].copy()
+            if "Status" in df_curr.columns
+            else df_curr.copy()
+        )
 
         df_active["Periode"] = selected_periode
         df_active["Tanggal Snapshot"] = str(date.today())
@@ -486,81 +542,150 @@ if is_admin:
           df_new_snap = df_active[cols_order]
 
         conn.update(worksheet="Snapshot_Bulanan", data=df_new_snap)
-        st.success(
-            f"✅ Rekap {selected_periode} berhasil disimpan ({len(df_active)} karyawan aktif)!"
-        )
+        st.success(f"✅ Rekap {selected_periode} berhasil disimpan!")
       except Exception as e:
         st.error(f"Gagal melakukan snapshot: {e}")
 
-  # Export CSV
+  # Export CSV & Excel
   st.sidebar.markdown("---")
+  st.sidebar.subheader("📤 Ekspor Database")
+
   csv_data = st.session_state.employees.to_csv(index=False).encode("utf-8-sig")
   st.sidebar.download_button(
-      label="📤 Ekspor Semua Data (CSV)",
+      label="📄 Ekspor CSV",
       data=csv_data,
       file_name="ekspor_database_karyawan.csv",
       mime="text/csv",
       use_container_width=True,
   )
 
-# --- HALAMAN UTAMA ---
+  excel_data = generate_excel_formatted(st.session_state.employees)
+  st.sidebar.download_button(
+      label="📊 Ekspor Excel Formatted (.xlsx)",
+      data=excel_data,
+      file_name=f"Rekap_Karyawan_{date.today().strftime('%Y%m%d')}.xlsx",
+      mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      use_container_width=True,
+  )
 
+
+# --- HALAMAN UTAMA ---
 if is_admin:
   st.info("🔓 **Mode Akses:** Administrator")
 else:
   st.info("👁️ **Mode Akses:** Umum / Guest (View Only)")
 
-# --- RINGKASAN DATA (SUMMARY) ---
-with st.expander("📊 **Ringkasan Data Karyawan (Summary)**", expanded=False):
+
+# --- MODUL BARU: DASHBOARD ANALYTICS & INTERACTIVE CHARTS ---
+with st.expander(
+    "📊 **Dashboard Analytics & Visualisasi Data**", expanded=True
+):
   if not st.session_state.employees.empty:
-    tab_posisi, tab_cc, tab_site = st.tabs([
-        "📌 Berdasarkan Posisi",
-        "💳 Berdasarkan Cost Center",
-        "🏢 Berdasarkan Site",
+    df_ana = st.session_state.employees.copy()
+
+    tab_overview, tab_trend, tab_cost = st.tabs([
+        "📈 Ringkasan & Status",
+        "🗓️ Tren Snapshot Bulanan",
+        "💳 Sebaran Cost Center & Site",
     ])
 
-    with tab_posisi:
-      if "Posisi" in st.session_state.employees.columns:
-        df_role = (
-            st.session_state.employees["Posisi"].value_counts().reset_index()
-        )
-        df_role.columns = ["Posisi", "Jumlah Karyawan"]
-        col_t1, col_g1 = st.columns([1, 1])
-        with col_t1:
-          st.dataframe(df_role, use_container_width=True)
-        with col_g1:
-          st.bar_chart(df_role.set_index("Posisi"))
+    # TAB 1: Ringkasan Status & Posisi (Plotly Donut & Bar Chart)
+    with tab_overview:
+      c1, c2 = st.columns(2)
+      with c1:
+        if "Status" in df_ana.columns:
+          fig_status = px.pie(
+              df_ana,
+              names="Status",
+              title="Komposisi Status Karyawan",
+              hole=0.4,
+              color_discrete_sequence=px.colors.qualitative.Set2,
+          )
+          fig_status.update_traces(
+              textposition="inside", textinfo="percent+label"
+          )
+          st.plotly_chart(fig_status, use_container_width=True)
 
-    with tab_cc:
-      if "Cost Center" in st.session_state.employees.columns:
-        df_cc = (
-            st.session_state.employees["Cost Center"]
-            .value_counts()
-            .reset_index()
-        )
-        df_cc.columns = ["Cost Center", "Jumlah Karyawan"]
-        col_t2, col_g2 = st.columns([1, 1])
-        with col_t2:
-          st.dataframe(df_cc, use_container_width=True)
-        with col_g2:
-          st.bar_chart(df_cc.set_index("Cost Center"))
+      with c2:
+        if "Posisi" in df_ana.columns:
+          top_roles = df_ana["Posisi"].value_counts().head(10).reset_index()
+          top_roles.columns = ["Posisi", "Jumlah"]
+          fig_role = px.bar(
+              top_roles,
+              x="Jumlah",
+              y="Posisi",
+              orientation="h",
+              title="Top 10 Posisi Terbanyak",
+              color="Jumlah",
+              color_continuous_scale="Blues",
+          )
+          fig_role.update_layout(yaxis={"categoryorder": "total ascending"})
+          st.plotly_chart(fig_role, use_container_width=True)
 
-    with tab_site:
-      if "Site" in st.session_state.employees.columns:
-        df_site = (
-            st.session_state.employees["Site"]
-            .replace("", "Belum Diisi")
-            .value_counts()
-            .reset_index()
+    # TAB 2: Tren Snapshot Bulanan (Month-over-Month Growth)
+    with tab_trend:
+      df_snap_hist = load_snapshot_data()
+      if not df_snap_hist.empty and "Periode" in df_snap_hist.columns:
+        trend_summary = (
+            df_snap_hist.groupby("Periode")["ID"]
+            .count()
+            .reset_index(name="Karyawan Aktif")
         )
-        df_site.columns = ["Site", "Jumlah Karyawan"]
-        col_t3, col_g3 = st.columns([1, 1])
-        with col_t3:
-          st.dataframe(df_site, use_container_width=True)
-        with col_g3:
-          st.bar_chart(df_site.set_index("Site"))
+        trend_summary = trend_summary.sort_values("Periode")
+
+        fig_trend = px.line(
+            trend_summary,
+            x="Periode",
+            y="Karyawan Aktif",
+            markers=True,
+            title="Pertumbuhan Jumlah Karyawan Aktif per Periode Snapshot",
+            line_shape="spline",
+        )
+        fig_trend.update_traces(
+            line_color="#1F4E79", line_width=3, marker_size=8
+        )
+        st.plotly_chart(fig_trend, use_container_width=True)
+      else:
+        st.info(
+            "Belum ada data snapshot historis. Lakukan Snapshot Bulanan di menu"
+            " Admin untuk melihat grafik tren perkembangan dari waktu ke waktu."
+        )
+
+    # TAB 3: Sebaran Cost Center & Site
+    with tab_cost:
+      c3, c4 = st.columns(2)
+      with c3:
+        if "Cost Center" in df_ana.columns:
+          cc_counts = df_ana["Cost Center"].value_counts().reset_index()
+          cc_counts.columns = ["Cost Center", "Jumlah"]
+          fig_cc = px.bar(
+              cc_counts,
+              x="Cost Center",
+              y="Jumlah",
+              title="Jumlah Karyawan per Cost Center",
+              color="Jumlah",
+              color_continuous_scale="Viridis",
+          )
+          st.plotly_chart(fig_cc, use_container_width=True)
+
+      with c4:
+        if "Site" in df_ana.columns:
+          site_counts = (
+              df_ana["Site"]
+              .replace("", "Belum Diisi")
+              .value_counts()
+              .reset_index()
+          )
+          site_counts.columns = ["Site", "Jumlah"]
+          fig_site = px.pie(
+              site_counts,
+              names="Site",
+              values="Jumlah",
+              title="Distribusi Lokasi Kerja (Site)",
+          )
+          st.plotly_chart(fig_site, use_container_width=True)
   else:
-    st.write("Belum ada data untuk ditampilkan ringkasannya.")
+    st.write("Belum ada data untuk ditampilkan analitiknya.")
 
 st.divider()
 
@@ -666,7 +791,7 @@ if search_query and not df_display.empty:
         mask_name | mask_role | mask_cc | mask_site | mask_stat
     ]
 
-# Header Tabel & Tombol Cetak PDF
+# Header Tabel & Tombol Ekspor/Cetak
 col_tb_title, col_pdf_btn = st.columns([3, 1])
 with col_tb_title:
   st.subheader(f"📋 Tabel Data Karyawan ({view_mode})")
@@ -681,12 +806,11 @@ with col_pdf_btn:
         use_container_width=True,
     )
 
-# Tabel Tampilan Karyawan
+# Tabel Data
 if df_display.empty:
   st.warning("Tidak ada data karyawan yang cocok dengan pencarian.")
 else:
   st.dataframe(df_display, use_container_width=True)
-
 
 # --- EDIT / HAPUS SATUAN ---
 if (
@@ -732,10 +856,8 @@ if (
           "Status Karyawan", options=status_opts, index=idx_stat
       )
 
-      # Field Tanggal Resign
       e_resign = st.text_input(
-          "Tanggal Resign (YYYY-MM-DD) [Isi jika status Resign]",
-          value=row.get("Tanggal Resign", "-"),
+          "Tanggal Resign (YYYY-MM-DD)", value=row.get("Tanggal Resign", "-")
       )
 
       col_save, col_del = st.columns(2)
