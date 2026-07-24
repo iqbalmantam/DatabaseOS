@@ -782,7 +782,7 @@ with st.expander(
                     with st.chat_message("assistant"):
                         with st.spinner("Sedang menganalisis data..."):
                             try:
-                                # Konfigurasi SDK google-generativeai stabil
+                                # Konfigurasi SDK google-generativeai
                                 genai.configure(api_key=api_key)
 
                                 # Format Data Master sebagai Konteks
@@ -798,8 +798,8 @@ with st.expander(
                                 Jawablah dalam bahasa Indonesia dengan format yang rapi dan mudah dibaca.
                                 """
 
-                                # Inisialisasi Model & Generate
-                                model = genai.GenerativeModel("gemini-1.5-flash")
+                                # Inisialisasi Model & Generate (Gunakan gemini-2.0-flash)
+                                model = genai.GenerativeModel("gemini-2.0-flash")
                                 response = model.generate_content(
                                     f"{system_instruction}\n\nPertanyaan Pengguna: {prompt}"
                                 )
