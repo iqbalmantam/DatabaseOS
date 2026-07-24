@@ -189,7 +189,6 @@ def generate_excel_formatted(df):
   ws = wb.active
   ws.title = "Rekap Karyawan"
 
-  # Style Formats
   header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
   header_fill = PatternFill(
       start_color="1F4E79", end_color="1F4E79", fill_type="solid"
@@ -200,7 +199,6 @@ def generate_excel_formatted(df):
       left=border_thin, right=border_thin, top=border_thin, bottom=border_thin
   )
 
-  # Judul Laporan
   ws.merge_cells("A1:J1")
   ws["A1"] = "LAPORAN DATABASE KARYAWAN"
   ws["A1"].font = Font(name="Calibri", size=14, bold=True, color="1F4E79")
@@ -215,11 +213,9 @@ def generate_excel_formatted(df):
   ws.row_dimensions[1].height = 25
   ws.row_dimensions[2].height = 18
 
-  # Write Header
   headers = list(df.columns)
-  ws.append([])  # Row 3 kosong
-
-  ws.append(headers)  # Row 4
+  ws.append([])
+  ws.append(headers)
   ws.row_dimensions[4].height = 24
 
   for col_num, _ in enumerate(headers, 1):
@@ -228,7 +224,6 @@ def generate_excel_formatted(df):
     cell.fill = header_fill
     cell.alignment = Alignment(horizontal="center", vertical="center")
 
-  # Write Data
   for r_idx, row in df.iterrows():
     row_data = list(row)
     ws.append(row_data)
@@ -249,7 +244,6 @@ def generate_excel_formatted(df):
       ]:
         cell.alignment = Alignment(horizontal="center", vertical="center")
 
-  # Auto-fit Column Width
   for col in ws.columns:
     max_len = 0
     col_letter = get_column_letter(col[0].column)
@@ -497,9 +491,9 @@ if is_admin:
             st.success(f"Berhasil menambahkan {len(added_rows)} data baru!")
             st.rerun()
 
-  # 3. KUNCI DATA SNAPSHOT BULANAN
+  # 3. KUNCI & HAPUS DATA SNAPSHOT BULANAN
   with st.sidebar.expander("📸 Freeze / Snapshot Bulanan", expanded=False):
-    st.write("Kunci data karyawan **Aktif** ke rekap bulanan.")
+    st.subheader("🔒 Simpan Snapshot Baru")
     selected_periode = st.date_input(
         "Pilih Bulan Periode", value=date.today()
     ).strftime("%Y-%m")
@@ -543,8 +537,37 @@ if is_admin:
 
         conn.update(worksheet="Snapshot_Bulanan", data=df_new_snap)
         st.success(f"✅ Rekap {selected_periode} berhasil disimpan!")
+        st.rerun()
       except Exception as e:
         st.error(f"Gagal melakukan snapshot: {e}")
+
+    # --- FITUR HAPUS SNAPSHOT (CARA 1) ---
+    st.markdown("---")
+    st.subheader("🗑️ Hapus Snapshot Periode")
+
+    df_snap_exist = load_snapshot_data()
+    if not df_snap_exist.empty and "Periode" in df_snap_exist.columns:
+      list_snap_periods = sorted(
+          df_snap_exist["Periode"].unique(), reverse=True
+      )
+      period_to_delete = st.selectbox(
+          "Pilih Periode yang Ingin Dihapus:", list_snap_periods
+      )
+
+      if st.button(f"🗑️ Hapus Snapshot {period_to_delete}"):
+        try:
+          df_snap_filtered = df_snap_exist[
+              df_snap_exist["Periode"] != period_to_delete
+          ]
+          conn.update(worksheet="Snapshot_Bulanan", data=df_snap_filtered)
+          st.success(
+              f"✅ Snapshot periode {period_to_delete} berhasil dihapus!"
+          )
+          st.rerun()
+        except Exception as e:
+          st.error(f"Gagal menghapus snapshot: {e}")
+    else:
+      st.info("Belum ada data snapshot untuk dihapus.")
 
   # Export CSV & Excel
   st.sidebar.markdown("---")
@@ -576,7 +599,7 @@ else:
   st.info("👁️ **Mode Akses:** Umum / Guest (View Only)")
 
 
-# --- MODUL BARU: DASHBOARD ANALYTICS & INTERACTIVE CHARTS ---
+# --- DASHBOARD ANALYTICS ---
 with st.expander(
     "📊 **Dashboard Analytics & Visualisasi Data**", expanded=True
 ):
@@ -589,7 +612,6 @@ with st.expander(
         "💳 Sebaran Cost Center & Site",
     ])
 
-    # TAB 1: Ringkasan Status & Posisi (Plotly Donut & Bar Chart)
     with tab_overview:
       c1, c2 = st.columns(2)
       with c1:
@@ -622,7 +644,6 @@ with st.expander(
           fig_role.update_layout(yaxis={"categoryorder": "total ascending"})
           st.plotly_chart(fig_role, use_container_width=True)
 
-    # TAB 2: Tren Snapshot Bulanan (Month-over-Month Growth)
     with tab_trend:
       df_snap_hist = load_snapshot_data()
       if not df_snap_hist.empty and "Periode" in df_snap_hist.columns:
@@ -646,12 +667,8 @@ with st.expander(
         )
         st.plotly_chart(fig_trend, use_container_width=True)
       else:
-        st.info(
-            "Belum ada data snapshot historis. Lakukan Snapshot Bulanan di menu"
-            " Admin untuk melihat grafik tren perkembangan dari waktu ke waktu."
-        )
+        st.info("Belum ada data snapshot historis.")
 
-    # TAB 3: Sebaran Cost Center & Site
     with tab_cost:
       c3, c4 = st.columns(2)
       with c3:
