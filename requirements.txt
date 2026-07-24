@@ -4,3 +4,4 @@ st-gsheets-connection
 fpdf2
 plotly
 openpyxl
+google-genai
