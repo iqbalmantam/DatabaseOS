@@ -1,6 +1,7 @@
 from datetime import date
 import io
 from fpdf import FPDF
+from google import genai
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -599,17 +600,18 @@ else:
   st.info("👁️ **Mode Akses:** Umum / Guest (View Only)")
 
 
-# --- DASHBOARD ANALYTICS ---
+# --- DASHBOARD ANALYTICS & CHAT AI ---
 with st.expander(
     "📊 **Dashboard Analytics & Visualisasi Data**", expanded=True
 ):
   if not st.session_state.employees.empty:
     df_ana = st.session_state.employees.copy()
 
-    tab_overview, tab_trend, tab_cost = st.tabs([
+    tab_overview, tab_trend, tab_cost, tab_chat = st.tabs([
         "📈 Ringkasan & Status",
         "🗓️ Tren Snapshot Bulanan",
         "💳 Sebaran Cost Center & Site",
+        "💬 Chat AI Assistant",
     ])
 
     with tab_overview:
@@ -669,7 +671,7 @@ with st.expander(
       else:
         st.info("Belum ada data snapshot historis.")
 
-    # TAB 3: COST CENTER (FORMAT HORIZONTAL DENGAN AUTO-CLEANING)
+    # TAB 3: COST CENTER
     with tab_cost:
       c3, c4 = st.columns(2)
       with c3:
@@ -683,7 +685,6 @@ with st.expander(
               .replace("", "Belum Diisi")
           )
 
-          # Perbaikan variasi kata spesifik agar terkelompok sempurna
           df_cc_clean["Cost Center Clean"] = df_cc_clean[
               "Cost Center Clean"
           ].replace({
@@ -701,7 +702,6 @@ with st.expander(
           )
           cc_counts.columns = ["Cost Center", "Jumlah"]
 
-          # Tampilan Horizontal Bar Chart agar semua nama terlihat jelas
           fig_cc = px.bar(
               cc_counts,
               x="Jumlah",
@@ -743,6 +743,73 @@ with st.expander(
               hole=0.3,
           )
           st.plotly_chart(fig_site, use_container_width=True)
+
+    # TAB 4: CHAT AI ASSISTANT
+    with tab_chat:
+      st.subheader("💬 Tanya Jawab Data Karyawan (Gemini AI)")
+      st.caption(
+          "Tanyakan apa saja seputar data karyawan (contoh: 'Berapa total"
+          " karyawan di Cost Center VinFast?', 'Siapa saja karyawan di site"
+          " JDC?')"
+      )
+
+      # Inisialisasi Riwayat Chat
+      if "chat_messages" not in st.session_state:
+        st.session_state.chat_messages = []
+
+      # Tampilkan Riwayat Chat
+      for message in st.session_state.chat_messages:
+        with st.chat_message(message["role"]):
+          st.markdown(message["content"])
+
+      # Input Pertanyaan User
+      if prompt := st.chat_input(
+          "Ketik pertanyaan Anda tentang data karyawan..."
+      ):
+        st.session_state.chat_messages.append(
+            {"role": "user", "content": prompt}
+        )
+        with st.chat_message("user"):
+          st.markdown(prompt)
+
+        # Cek API Key
+        api_key = st.secrets.get("GEMINI_API_KEY", "")
+        if not api_key:
+          st.error(
+              "⚠️ API Key Gemini belum dikonfigurasi di Streamlit Secrets"
+              " (GEMINI_API_KEY)."
+          )
+        else:
+          with st.chat_message("assistant"):
+            with st.spinner("Sedang menganalisis data..."):
+              try:
+                # Format Data Master sebagai Konteks untuk AI
+                csv_context = df_ana.to_csv(index=False)
+                system_instruction = f"""
+                                Anda adalah Asisten AI HR untuk 'Employee Database Manager'.
+                                Tugas Anda adalah menjawab pertanyaan pengguna secara akurat, sopan, dan jelas berdasarkan data karyawan berikut:
+
+                                --- DATA MASTER KARYAWAN ---
+                                {csv_context}
+                                --- AKHIR DATA ---
+
+                                Jawablah dalam bahasa Indonesia dengan format yang rapi dan mudah dibaca.
+                                """
+
+                client = genai.Client(api_key=api_key)
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=f"{system_instruction}\n\nPertanyaan Pengguna: {prompt}",
+                )
+
+                ai_reply = response.text
+                st.markdown(ai_reply)
+                st.session_state.chat_messages.append(
+                    {"role": "assistant", "content": ai_reply}
+                )
+              except Exception as e:
+                st.error(f"Gagal menghubungi Gemini AI: {e}")
+
   else:
     st.write("Belum ada data untuk ditampilkan analitiknya.")
 
