@@ -541,7 +541,7 @@ if is_admin:
       except Exception as e:
         st.error(f"Gagal melakukan snapshot: {e}")
 
-    # --- FITUR HAPUS SNAPSHOT (CARA 1) ---
+    # --- FITUR HAPUS SNAPSHOT ---
     st.markdown("---")
     st.subheader("🗑️ Hapus Snapshot Periode")
 
@@ -669,36 +669,78 @@ with st.expander(
       else:
         st.info("Belum ada data snapshot historis.")
 
+    # TAB 3: COST CENTER (FORMAT HORIZONTAL DENGAN AUTO-CLEANING)
     with tab_cost:
       c3, c4 = st.columns(2)
       with c3:
         if "Cost Center" in df_ana.columns:
-          cc_counts = df_ana["Cost Center"].value_counts().reset_index()
+          df_cc_clean = df_ana.copy()
+          df_cc_clean["Cost Center Clean"] = (
+              df_cc_clean["Cost Center"]
+              .astype(str)
+              .str.strip()
+              .str.title()
+              .replace("", "Belum Diisi")
+          )
+
+          # Perbaikan variasi kata spesifik agar terkelompok sempurna
+          df_cc_clean["Cost Center Clean"] = df_cc_clean[
+              "Cost Center Clean"
+          ].replace({
+              "Vinfast": "VinFast",
+              "Cj Food": "CJ Food",
+              "Fks": "FKS",
+              "Keva & Jotun": "Keva & Jotun",
+              "Jotun, Keva": "Keva & Jotun",
+          })
+
+          cc_counts = (
+              df_cc_clean["Cost Center Clean"]
+              .value_counts()
+              .reset_index()
+          )
           cc_counts.columns = ["Cost Center", "Jumlah"]
+
+          # Tampilan Horizontal Bar Chart agar semua nama terlihat jelas
           fig_cc = px.bar(
               cc_counts,
-              x="Cost Center",
-              y="Jumlah",
+              x="Jumlah",
+              y="Cost Center",
+              orientation="h",
               title="Jumlah Karyawan per Cost Center",
               color="Jumlah",
               color_continuous_scale="Viridis",
+              text="Jumlah",
           )
+          fig_cc.update_layout(
+              yaxis={"categoryorder": "total ascending"},
+              height=max(450, len(cc_counts) * 25),
+          )
+          fig_cc.update_traces(textposition="outside")
           st.plotly_chart(fig_cc, use_container_width=True)
 
       with c4:
         if "Site" in df_ana.columns:
+          df_site_clean = df_ana.copy()
+          df_site_clean["Site Clean"] = (
+              df_site_clean["Site"]
+              .astype(str)
+              .str.strip()
+              .str.upper()
+              .replace("", "BELUM DIISI")
+          )
+
           site_counts = (
-              df_ana["Site"]
-              .replace("", "Belum Diisi")
-              .value_counts()
-              .reset_index()
+              df_site_clean["Site Clean"].value_counts().reset_index()
           )
           site_counts.columns = ["Site", "Jumlah"]
+
           fig_site = px.pie(
               site_counts,
               names="Site",
               values="Jumlah",
               title="Distribusi Lokasi Kerja (Site)",
+              hole=0.3,
           )
           st.plotly_chart(fig_site, use_container_width=True)
   else:
