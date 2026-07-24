@@ -1,7 +1,7 @@
 streamlit
 pandas
-st-gsheets-connection
-fpdf2
 plotly
+fpdf
 openpyxl
-google-genai
+st-gsheets-connection
+google-generativeai
