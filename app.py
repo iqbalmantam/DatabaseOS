@@ -13,7 +13,6 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    /* Sembunyikan toolbar aksi di kanan atas (GitHub, Fork, Menu Titik Tiga) */
     div[data-testid="stToolbarActions"] {
         display: none !important;
     }
@@ -23,8 +22,6 @@ st.markdown(
     #MainMenu {
         visibility: hidden !important;
     }
-    
-    /* Pastikan tombol pembuka sidebar (kiri atas) tetap tampil & bisa diklik di HP */
     [data-testid="stCollapsedControl"] {
         display: flex !important;
         visibility: visible !important;
@@ -34,7 +31,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- PIN / PASSWORD ADMINISTRATOR ---
+# --- PIN ADMINISTRATOR ---
 ADMIN_PIN = "2273"
 
 # --- KONEKSI GOOGLE SHEETS ---
@@ -54,9 +51,12 @@ def load_data():
         df["Site"] = ""
       if "Status" not in df.columns:
         df["Status"] = "Aktif"
+      if "Tanggal Resign" not in df.columns:
+        df["Tanggal Resign"] = "-"
+      if "Terakhir Diperbarui" not in df.columns:
+        df["Terakhir Diperbarui"] = str(date.today())
     return df
   except Exception:
-    # Fallback jika nama worksheet default masih Sheet1
     try:
       df = conn.read(ttl=0)
       if df is not None and not df.empty:
@@ -68,6 +68,10 @@ def load_data():
           df["Site"] = ""
         if "Status" not in df.columns:
           df["Status"] = "Aktif"
+        if "Tanggal Resign" not in df.columns:
+          df["Tanggal Resign"] = "-"
+        if "Terakhir Diperbarui" not in df.columns:
+          df["Terakhir Diperbarui"] = str(date.today())
       return df
     except Exception as e:
       st.error(f"Gagal terhubung ke Google Sheets: {e}")
@@ -79,8 +83,10 @@ def load_data():
               "Cost Center",
               "Tanggal Bergabung",
               "Akhir Kontrak",
+              "Tanggal Resign",
               "Site",
               "Status",
+              "Terakhir Diperbarui",
           ]
       )
 
@@ -104,7 +110,7 @@ def save_data(df):
 def generate_pdf(df):
   pdf = FPDF(orientation="L", unit="mm", format="A4")
   pdf.add_page()
-  pdf.set_font("Helvetica", "B", 16)
+  pdf.set_font("Helvetica", "B", 14)
 
   pdf.cell(0, 10, "LAPORAN DATABASE KARYAWAN", ln=True, align="C")
   pdf.set_font("Helvetica", "", 10)
@@ -112,54 +118,66 @@ def generate_pdf(df):
       0,
       6,
       f"Dicetak Tanggal: {date.today().strftime('%d-%m-%Y')} | Total"
-      f" Karyawan: {len(df)}",
+      f" Record: {len(df)}",
       ln=True,
       align="C",
   )
-  pdf.ln(5)
+  pdf.ln(4)
 
-  pdf.set_font("Helvetica", "B", 9)
+  pdf.set_font("Helvetica", "B", 8)
   pdf.set_fill_color(230, 230, 230)
 
-  col_widths = [25, 50, 40, 30, 30, 30, 30, 25]
+  col_widths = [22, 45, 35, 25, 25, 25, 25, 25, 20, 30]
   headers = [
       "ID",
       "Nama Lengkap",
       "Posisi",
       "Cost Center",
-      "Tgl Bergabung",
-      "Akhir Kontrak",
+      "Tgl Join",
+      "End Kontrak",
+      "Tgl Resign",
       "Site",
       "Status",
+      "Updated",
   ]
 
   for i, h in enumerate(headers):
-    pdf.cell(col_widths[i], 8, h, border=1, align="C", fill=True)
+    pdf.cell(col_widths[i], 7, h, border=1, align="C", fill=True)
   pdf.ln()
 
-  pdf.set_font("Helvetica", "", 8)
+  pdf.set_font("Helvetica", "", 7)
   for _, row in df.iterrows():
-    pdf.cell(col_widths[0], 7, str(row.get("ID", "")), border=1, align="C")
-    pdf.cell(col_widths[1], 7, str(row.get("Nama Lengkap", ""))[:28], border=1)
-    pdf.cell(col_widths[2], 7, str(row.get("Posisi", ""))[:22], border=1)
+    pdf.cell(col_widths[0], 6, str(row.get("ID", "")), border=1, align="C")
+    pdf.cell(col_widths[1], 6, str(row.get("Nama Lengkap", ""))[:25], border=1)
+    pdf.cell(col_widths[2], 6, str(row.get("Posisi", ""))[:20], border=1)
     pdf.cell(
-        col_widths[3], 7, str(row.get("Cost Center", "")), border=1, align="C"
+        col_widths[3], 6, str(row.get("Cost Center", "")), border=1, align="C"
     )
     pdf.cell(
         col_widths[4],
-        7,
+        6,
         str(row.get("Tanggal Bergabung", "")),
         border=1,
         align="C",
     )
     pdf.cell(
-        col_widths[5], 7, str(row.get("Akhir Kontrak", "")), border=1, align="C"
+        col_widths[5], 6, str(row.get("Akhir Kontrak", "")), border=1, align="C"
     )
-    pdf.cell(col_widths[6], 7, str(row.get("Site", "")), border=1, align="C")
     pdf.cell(
-        col_widths[7],
-        7,
+        col_widths[6], 6, str(row.get("Tanggal Resign", "-")), border=1, align="C"
+    )
+    pdf.cell(col_widths[7], 6, str(row.get("Site", "")), border=1, align="C")
+    pdf.cell(
+        col_widths[8],
+        6,
         str(row.get("Status", "Aktif")),
+        border=1,
+        align="C",
+    )
+    pdf.cell(
+        col_widths[9],
+        6,
+        str(row.get("Terakhir Diperbarui", "")),
         border=1,
         align="C",
     )
@@ -193,7 +211,7 @@ def generate_next_id():
 st.title("Employee Database Manager")
 st.caption("Created by iqbalmantam")
 
-# Metric Total Karyawan Aktif vs Resign
+# Metric Total Karyawan
 df_master_current = st.session_state.employees
 total_karyawan = len(df_master_current)
 total_aktif = (
@@ -201,12 +219,19 @@ total_aktif = (
     if "Status" in df_master_current.columns
     else total_karyawan
 )
+total_resign = (
+    len(df_master_current[df_master_current["Status"] == "Resign"])
+    if "Status" in df_master_current.columns
+    else 0
+)
 
-col_m1, col_m2 = st.columns(2)
+col_m1, col_m2, col_m3 = st.columns(3)
 with col_m1:
-  st.metric(label="Total Karyawan Aktif", value=total_aktif)
+  st.metric(label="Karyawan Aktif", value=total_aktif)
 with col_m2:
-  st.metric(label="Total Seluruh Record", value=total_karyawan)
+  st.metric(label="Karyawan Resign", value=total_resign)
+with col_m3:
+  st.metric(label="Total Record Data", value=total_karyawan)
 
 st.divider()
 
@@ -251,6 +276,12 @@ if is_admin:
       )
       new_status = st.selectbox("Status Karyawan", ["Aktif", "Resign", "PKWT"])
 
+      new_resign_date = "-"
+      if new_status == "Resign":
+        new_resign_date = st.date_input(
+            "Tanggal Resign", value=date.today()
+        ).strftime("%Y-%m-%d")
+
       submit_btn = st.form_submit_button("Simpan Karyawan")
       if submit_btn:
         clean_id = new_id.strip()
@@ -277,8 +308,10 @@ if is_admin:
               "Cost Center": new_cc,
               "Tanggal Bergabung": new_join.strftime("%Y-%m-%d"),
               "Akhir Kontrak": new_end.strftime("%Y-%m-%d"),
+              "Tanggal Resign": new_resign_date,
               "Site": new_site,
               "Status": new_status,
+              "Terakhir Diperbarui": str(date.today()),
           }
           updated_df = pd.concat(
               [st.session_state.employees, pd.DataFrame([new_row])],
@@ -307,6 +340,9 @@ if is_admin:
               df_import.rename(columns={"Jabatan": "Posisi"}, inplace=True)
             if "Status" not in df_import.columns:
               df_import["Status"] = "Aktif"
+            if "Tanggal Resign" not in df_import.columns:
+              df_import["Tanggal Resign"] = "-"
+            df_import["Terakhir Diperbarui"] = str(date.today())
 
             existing_ids = set(
                 str(x).strip().lower()
@@ -343,7 +379,8 @@ if is_admin:
       pasted_text = st.text_area(
           "Tempel dari Excel (Tab / Comma separated)",
           placeholder=(
-              "EMP-005\tBudi Santoso\tDeveloper\tCC-101\t2024-01-15\t2025-01-15\tJakarta\tAktif"
+              "EMP-005\tBudi"
+              " Santoso\tDeveloper\tCC-101\t2024-01-15\t2025-01-15\t-\tJakarta\tAktif"
           ),
           height=150,
       )
@@ -371,8 +408,9 @@ if is_admin:
               )
               join_d = cols[4] if len(cols) > 4 else ""
               end_d = cols[5] if len(cols) > 5 else ""
-              site_val = cols[6] if len(cols) > 6 else ""
-              status_val = cols[7] if len(cols) > 7 else "Aktif"
+              resign_d = cols[6] if len(cols) > 6 else "-"
+              site_val = cols[7] if len(cols) > 7 else ""
+              status_val = cols[8] if len(cols) > 8 else "Aktif"
 
               if emp_id.lower() not in existing_ids:
                 added_rows.append({
@@ -382,8 +420,10 @@ if is_admin:
                     "Cost Center": cc,
                     "Tanggal Bergabung": join_d,
                     "Akhir Kontrak": end_d,
+                    "Tanggal Resign": resign_d,
                     "Site": site_val,
                     "Status": status_val,
+                    "Terakhir Diperbarui": str(date.today()),
                 })
                 existing_ids.add(emp_id.lower())
               else:
@@ -400,16 +440,11 @@ if is_admin:
               st.warning(f"Dilewati {skipped_count} data karena ID duplikat.")
             st.rerun()
           else:
-            st.error(
-                "Tidak ada data baru yang ditambahkan (semua ID sudah"
-                " terdaftar)."
-            )
+            st.error("Tidak ada data baru yang ditambahkan.")
 
   # 3. KUNCI DATA SNAPSHOT BULANAN
   with st.sidebar.expander("📸 Freeze / Snapshot Bulanan", expanded=False):
-    st.write(
-        "Kunci data karyawan **Aktif** saat ini ke rekap laporan bulanan."
-    )
+    st.write("Kunci data karyawan **Aktif** ke rekap bulanan.")
     selected_periode = st.date_input(
         "Pilih Bulan Periode", value=date.today()
     ).strftime("%Y-%m")
@@ -417,7 +452,6 @@ if is_admin:
     if st.button(f"🔒 Kunci Data {selected_periode}"):
       try:
         df_curr = st.session_state.employees.copy()
-        # Filter hanya yang Aktif
         if "Status" in df_curr.columns:
           df_active = df_curr[df_curr["Status"] == "Aktif"].copy()
         else:
@@ -426,7 +460,6 @@ if is_admin:
         df_active["Periode"] = selected_periode
         df_active["Tanggal Snapshot"] = str(date.today())
 
-        # Susun kolom sesuai header Snapshot_Bulanan
         cols_order = [
             "Periode",
             "ID",
@@ -435,15 +468,15 @@ if is_admin:
             "Cost Center",
             "Tanggal Bergabung",
             "Akhir Kontrak",
+            "Tanggal Resign",
             "Site",
             "Status",
+            "Terakhir Diperbarui",
             "Tanggal Snapshot",
         ]
 
-        # Ambil data snapshot lama jika ada
         df_old_snap = load_snapshot_data()
         if not df_old_snap.empty:
-          # Hapus snapshot periode sama jika pernah di-generate sebelumnya (mencegah duplikat)
           if "Periode" in df_old_snap.columns:
             df_old_snap = df_old_snap[
                 df_old_snap["Periode"] != selected_periode
@@ -473,15 +506,11 @@ if is_admin:
 # --- HALAMAN UTAMA ---
 
 if is_admin:
-  st.info(
-      "🔓 **Mode Akses:** Administrator (Tersinkronisasi dengan Google Sheets)"
-  )
+  st.info("🔓 **Mode Akses:** Administrator")
 else:
-  st.info(
-      "👁️ **Mode Akses:** Umum / Guest (Hanya dapat melihat dan mencari data)"
-  )
+  st.info("👁️ **Mode Akses:** Umum / Guest (View Only)")
 
-# --- BAGIAN FITUR SUMMARY / RINGKASAN DATA ---
+# --- RINGKASAN DATA (SUMMARY) ---
 with st.expander("📊 **Ringkasan Data Karyawan (Summary)**", expanded=False):
   if not st.session_state.employees.empty:
     tab_posisi, tab_cc, tab_site = st.tabs([
@@ -535,7 +564,7 @@ with st.expander("📊 **Ringkasan Data Karyawan (Summary)**", expanded=False):
 
 st.divider()
 
-# --- FITUR PENCARIAN & FILTER PERIODE ---
+# --- FITUR PENCARIAN & FILTER ---
 col_mode, col_cat, col_src = st.columns([1.5, 1.5, 3])
 
 with col_mode:
@@ -628,7 +657,14 @@ if search_query and not df_display.empty:
     mask_site = (
         df_display["Site"].astype(str).str.lower().str.contains(query, na=False)
     )
-    df_display = df_display[mask_name | mask_role | mask_cc | mask_site]
+    mask_stat = (
+        df_display["Status"].astype(str).str.lower().str.contains(query, na=False)
+        if "Status" in df_display.columns
+        else False
+    )
+    df_display = df_display[
+        mask_name | mask_role | mask_cc | mask_site | mask_stat
+    ]
 
 # Header Tabel & Tombol Cetak PDF
 col_tb_title, col_pdf_btn = st.columns([3, 1])
@@ -696,6 +732,12 @@ if (
           "Status Karyawan", options=status_opts, index=idx_stat
       )
 
+      # Field Tanggal Resign
+      e_resign = st.text_input(
+          "Tanggal Resign (YYYY-MM-DD) [Isi jika status Resign]",
+          value=row.get("Tanggal Resign", "-"),
+      )
+
       col_save, col_del = st.columns(2)
       with col_save:
         btn_save = st.form_submit_button("💾 Simpan Perubahan")
@@ -709,9 +751,21 @@ if (
             "Cost Center",
             "Tanggal Bergabung",
             "Akhir Kontrak",
+            "Tanggal Resign",
             "Site",
             "Status",
-        ]] = [e_name, e_role, e_cc, e_join, e_end, e_site, e_status]
+            "Terakhir Diperbarui",
+        ]] = [
+            e_name,
+            e_role,
+            e_cc,
+            e_join,
+            e_end,
+            e_resign,
+            e_site,
+            e_status,
+            str(date.today()),
+        ]
         save_data(st.session_state.employees)
         st.success("Data berhasil diperbarui!")
         st.rerun()
