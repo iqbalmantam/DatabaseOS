@@ -1,7 +1,6 @@
 from datetime import date
 import io
 from fpdf import FPDF
-import google.generativeai as genai
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -104,7 +103,7 @@ def save_data(df):
     st.session_state.employees = df
 
 
-# Generator PDF
+# Generator PDF (Sudah Diperbaiki)
 def generate_pdf(df):
     pdf = FPDF(orientation="L", unit="mm", format="A4")
     pdf.add_page()
@@ -180,7 +179,8 @@ def generate_pdf(df):
         )
         pdf.ln()
 
-    return bytes(pdf.output())
+    out = pdf.output()
+    return bytes(out) if isinstance(out, (str, bytearray)) else out
 
 
 # Generator Excel Formatted (.xlsx)
@@ -597,18 +597,17 @@ else:
     st.info("👁️ **Mode Akses:** Umum / Guest (View Only)")
 
 
-# --- DASHBOARD ANALYTICS & CHAT AI ---
+# --- DASHBOARD ANALYTICS ---
 with st.expander(
     "📊 **Dashboard Analytics & Visualisasi Data**", expanded=True
 ):
     if not st.session_state.employees.empty:
         df_ana = st.session_state.employees.copy()
 
-        tab_overview, tab_trend, tab_cost, tab_chat = st.tabs([
+        tab_overview, tab_trend, tab_cost = st.tabs([
             "📈 Ringkasan & Status",
             "🗓️ Tren Snapshot Bulanan",
             "💳 Sebaran Cost Center & Site",
-            "💬 Chat AI Assistant",
         ])
 
         with tab_overview:
@@ -740,77 +739,6 @@ with st.expander(
                         hole=0.3,
                     )
                     st.plotly_chart(fig_site, use_container_width=True)
-
-        # TAB 4: CHAT AI ASSISTANT
-        with tab_chat:
-            st.subheader("💬 Tanya Jawab Data Karyawan (Gemini AI)")
-            st.caption(
-                "Tanyakan apa saja seputar data karyawan (contoh: 'Berapa total"
-                " karyawan di Cost Center VinFast?', 'Siapa saja karyawan di site"
-                " JDC?')"
-            )
-
-            # Inisialisasi Riwayat Chat
-            if "chat_messages" not in st.session_state:
-                st.session_state.chat_messages = []
-
-            # Tampilkan Riwayat Chat
-            for message in st.session_state.chat_messages:
-                with st.chat_message(message["role"]):
-                    st.markdown(message["content"])
-
-            # Input Pertanyaan User
-            if prompt := st.chat_input(
-                "Ketik pertanyaan Anda tentang data karyawan..."
-            ):
-                st.session_state.chat_messages.append(
-                    {"role": "user", "content": prompt}
-                )
-                with st.chat_message("user"):
-                    st.markdown(prompt)
-
-                # Ambil dan pastikan API Key bersih dari whitespace/spasi
-                raw_key = st.secrets.get("GEMINI_API_KEY", "")
-                api_key = str(raw_key).strip() if raw_key else ""
-
-                if not api_key:
-                    st.error(
-                        "⚠️ API Key Gemini belum dikonfigurasi di Streamlit Secrets"
-                        " (GEMINI_API_KEY)."
-                    )
-                else:
-                    with st.chat_message("assistant"):
-                        with st.spinner("Sedang menganalisis data..."):
-                            try:
-                                # Konfigurasi SDK google-generativeai
-                                genai.configure(api_key=api_key)
-
-                                # Format Data Master sebagai Konteks
-                                csv_context = df_ana.to_csv(index=False)
-                                system_instruction = f"""
-                                Anda adalah Asisten AI HR untuk 'Employee Database Manager'.
-                                Tugas Anda adalah menjawab pertanyaan pengguna secara akurat, sopan, dan jelas berdasarkan data karyawan berikut:
-
-                                --- DATA MASTER KARYAWAN ---
-                                {csv_context}
-                                --- AKHIR DATA ---
-
-                                Jawablah dalam bahasa Indonesia dengan format yang rapi dan mudah dibaca.
-                                """
-
-                                # Inisialisasi Model & Generate (Gunakan gemini-2.0-flash)
-                                model = genai.GenerativeModel("gemini-2.0-flash")
-                                response = model.generate_content(
-                                    f"{system_instruction}\n\nPertanyaan Pengguna: {prompt}"
-                                )
-
-                                ai_reply = response.text
-                                st.markdown(ai_reply)
-                                st.session_state.chat_messages.append(
-                                    {"role": "assistant", "content": ai_reply}
-                                )
-                            except Exception as e:
-                                st.error(f"Gagal menghubungi Gemini AI: {e}")
 
     else:
         st.write("Belum ada data untuk ditampilkan analitiknya.")
