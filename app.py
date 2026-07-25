@@ -807,40 +807,40 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             aggfunc="first",
         )
 
-        # Urutkan sub-header menjadi: In | Out | Shift | Status
+        # Urutkan sub-header secara tegas: In | Out | Shift | Status
         matrix_df = matrix_df.reindex(columns=["In", "Out", "Shift", "Status"], level=1)
 
-        # --- FIX 2: UBAH HEADER SUBLABEL 'Shift' MENJADI 'Status' (SESUAI INSTRUKSI) ---
-        matrix_df = matrix_df.rename(columns={"Shift": "Status"}, level=1)
+        # Fungsi Styling Spesifik Berdasarkan SubHeader Lengkap
+        def apply_matrix_styles(df):
+            # Buat DataFrame style kosong ukuran sama
+            styles_df = pd.DataFrame("", index=df.index, columns=df.columns)
+            
+            for col in df.columns:
+                sub_header = col[1]  # In / Out / Shift / Status
+                
+                if sub_header == "Shift":
+                    # Warna Kuning untuk kolom Shift jika terisi
+                    for idx in df.index:
+                        val = str(df.loc[idx, col]).strip()
+                        if val not in ["-", "", "nan", "None"]:
+                            styles_df.loc[idx, col] = "background-color: #FFFF00; color: black; font-weight: bold;"
+                
+                elif sub_header == "Status":
+                    # Warna khusus untuk Keterangan Status
+                    for idx in df.index:
+                        val_str = str(df.loc[idx, col]).strip().lower()
+                        if val_str in ["sakit", "cuti", "izin"]:
+                            styles_df.loc[idx, col] = "background-color: #FFC000; color: black; font-weight: bold;"
+                        elif val_str in ["late", "terlambat"]:
+                            styles_df.loc[idx, col] = "background-color: #FF0000; color: white; font-weight: bold;"
+                        elif val_str in ["alpha", "mangkir"]:
+                            styles_df.loc[idx, col] = "background-color: #8B0000; color: white; font-weight: bold;"
+            
+            return styles_df
 
-        # Styling Warna Kuning untuk Shift/Status dan Warna Khusus untuk Keterangan
-        def highlight_keterangan(val):
-            if pd.isna(val) or val in ["-", ""]:
-                return ""
-            val_str = str(val).strip().lower()
-            if val_str in ["sakit", "cuti", "izin"]:
-                return "background-color: #FFC000; color: black; font-weight: bold;"  # Oranye
-            elif val_str in ["late", "terlambat"]:
-                return "background-color: #FF0000; color: white; font-weight: bold;"  # Merah
-            elif val_str in ["alpha", "mangkir"]:
-                return "background-color: #8B0000; color: white; font-weight: bold;"  # Merah Tua
-            return ""
-
-        def highlight_shift_yellow(val):
-            if pd.notna(val) and val not in ["-", ""]:
-                return "background-color: #FFFF00; color: black; font-weight: bold;"  # Kuning
-            return ""
-
-        # Terapkan styling
+        # Terapkan styling secara aman
         styled_matrix = (
-            matrix_df.style.map(
-                highlight_shift_yellow,
-                subset=pd.IndexSlice[:, [c for c in matrix_df.columns if c[1] in ["Status", "Sta"]]],
-            )
-            .map(
-                highlight_keterangan,
-                subset=pd.IndexSlice[:, [c for c in matrix_df.columns if c[1] == "Status"]],
-            )
+            matrix_df.style.apply(apply_matrix_styles, axis=None)
             .set_properties(
                 **{
                     "text-align": "center",
