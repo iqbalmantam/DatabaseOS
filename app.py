@@ -757,13 +757,11 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
         with st.expander("📊 **Dashboard Analytics & Visualisasi Data Absensi**", expanded=True):
             df_analytics = df_absen.copy()
             
-            # --- PEMBERSIHAN STATUS UNTUK ANALYTICS ---
+            # --- PEMBERSIHAN STATUS UNTUK ANALYTICS (TANPA SCW) ---
             def clean_status_val(val):
                 v = str(val).strip().lower()
-                if pd.isna(val) or v in ["none", "nan", "", "-", "null"]:
+                if pd.isna(val) or v in ["none", "nan", "", "-", "null", "scw"]:
                     return "Hadir"
-                elif v in ["scw"]:
-                    return "SCW"
                 elif v in ["late", "terlambat"]:
                     return "Late"
                 elif v in ["sakit"]:
@@ -779,12 +777,12 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
 
             df_analytics["Status_Clean"] = df_analytics["Status"].apply(clean_status_val)
             
-            # --- PERBAIKAN FORMAT TANGGAL SEBAGAI STRING (YYYY-MM-DD) ---
+            # --- FORMAT TANGGAL SEBAGAI STRING (YYYY-MM-DD) ---
             df_analytics["Tanggal_Clean"] = pd.to_datetime(df_analytics["Tanggal"]).dt.strftime("%Y-%m-%d")
             
             total_records = len(df_analytics)
             late_count = len(df_analytics[df_analytics["Status_Clean"] == "Late"])
-            sakit_cuti_count = len(df_analytics[df_analytics["Status_Clean"].isin(["Sakit", "Cuti", "Izin", "SCW", "Alpha"])])
+            sakit_cuti_count = len(df_analytics[df_analytics["Status_Clean"].isin(["Sakit", "Cuti", "Izin", "Alpha"])])
             hadir_count = total_records - (late_count + sakit_cuti_count)
 
             # Metric Cards
@@ -792,7 +790,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             m1.metric("Total Record Absensi", f"{total_records:,}")
             m2.metric("Total Hadir Normal", f"{hadir_count:,}", delta=f"{round(hadir_count/total_records*100, 1) if total_records else 0}%")
             m3.metric("Terlambat (Late)", f"{late_count:,}", delta=f"-{late_count}" if late_count > 0 else "0", delta_color="inverse")
-            m4.metric("Status Khusus (Sakit/Cuti/SCW/dll)", f"{sakit_cuti_count:,}")
+            m4.metric("Status Khusus (Sakit/Cuti/Izin/dll)", f"{sakit_cuti_count:,}")
 
             st.markdown("---")
 
@@ -827,7 +825,6 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                         color_discrete_sequence=["#1F4E79"],
                         text="Total Scan"
                     )
-                    # Sumbu X dipaksa sebagai tipe kategori agar tidak memunculkan desimal jam/detik
                     fig_daily.update_xaxes(type='category', title_text="Tanggal")
                     fig_daily.update_traces(textposition="outside")
                     st.plotly_chart(fig_daily, use_container_width=True)
@@ -853,7 +850,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                     st.plotly_chart(fig_shift, use_container_width=True)
 
             with tab_top_late:
-                df_late_only = df_analytics[df_analytics["Status_Clean"].isin(["Late", "Terlambat", "Sakit", "Cuti", "Alpha", "SCW"])]
+                df_late_only = df_analytics[df_analytics["Status_Clean"].isin(["Late", "Terlambat", "Sakit", "Cuti", "Alpha"])]
                 if not df_late_only.empty:
                     top_late = df_late_only["Nama Lengkap"].value_counts().head(10).reset_index()
                     top_late.columns = ["Nama Karyawan", "Frekuensi"]
@@ -863,7 +860,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                         x="Frekuensi",
                         y="Nama Karyawan",
                         orientation="h",
-                        title="Top 10 Karyawan Catatan Khusus (Late/Sakit/Cuti/SCW)",
+                        title="Top 10 Karyawan Catatan Khusus (Late/Sakit/Cuti/Izin)",
                         color="Frekuensi",
                         color_continuous_scale="Reds",
                         text="Frekuensi"
