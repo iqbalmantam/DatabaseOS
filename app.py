@@ -757,40 +757,51 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
         with st.expander("📊 **Dashboard Analytics & Visualisasi Data Absensi**", expanded=True):
             df_analytics = df_absen.copy()
             
-            # --- PEMBERSIHAN STATUS UNTUK ANALYTICS (TANPA SCW) ---
-            def clean_status_val(val):
-                v = str(val).strip().lower()
-                if pd.isna(val) or v in ["none", "nan", "", "-", "null", "scw"]:
-                    return "Hadir"
-                elif v in ["late", "terlambat"]:
-                    return "Late"
-                elif v in ["sakit"]:
-                    return "Sakit"
-                elif v in ["cuti"]:
-                    return "Cuti"
-                elif v in ["izin"]:
-                    return "Izin"
-                elif v in ["alpha", "mangkir"]:
-                    return "Alpha"
-                else:
-                    return str(val).strip().title()
+            # --- LOGIKA KETAT DENGAN KOREKSI ATURAN BARU ---
+            def clean_status_val(row):
+                status_raw = str(row.get("Status", "")).strip().lower()
+                in_val = str(row.get("In", "")).strip().lower()
+                out_val = str(row.get("Out", "")).strip().lower()
 
-            df_analytics["Status_Clean"] = df_analytics["Status"].apply(clean_status_val)
+                # 1. Keterangan khusus (Sakit/Cuti/Izin) tetap diakui sebagai status khusus
+                if status_raw in ["sakit"]:
+                    return "Sakit"
+                elif status_raw in ["cuti"]:
+                    return "Cuti"
+                elif status_raw in ["izin", "ijin"]:
+                    return "Izin"
+                elif status_raw in ["alpha", "mangkir"]:
+                    return "Alpha"
+                elif status_raw in ["late", "terlambat"]:
+                    return "Late"
+
+                # 2. Cek ketersediaan jam In/Out
+                in_empty = pd.isna(row.get("In")) or in_val in ["none", "nan", "", "-", "null"]
+                out_empty = pd.isna(row.get("Out")) or out_val in ["none", "nan", "", "-", "null"]
+
+                # HANYA JIKA KEDUANYA KOSONG maka dianggap Alpha (Tidak Hadir)
+                if in_empty and out_empty:
+                    return "Alpha"
+
+                # JIKA SALAH SATU ATAU KEDUANYA TERISI (In ada / Out ada) -> Dianggap Hadir
+                return "Hadir"
+
+            df_analytics["Status_Clean"] = df_analytics.apply(clean_status_val, axis=1)
             
             # --- FORMAT TANGGAL SEBAGAI STRING (YYYY-MM-DD) ---
             df_analytics["Tanggal_Clean"] = pd.to_datetime(df_analytics["Tanggal"]).dt.strftime("%Y-%m-%d")
             
             total_records = len(df_analytics)
+            hadir_count = len(df_analytics[df_analytics["Status_Clean"] == "Hadir"])
             late_count = len(df_analytics[df_analytics["Status_Clean"] == "Late"])
-            sakit_cuti_count = len(df_analytics[df_analytics["Status_Clean"].isin(["Sakit", "Cuti", "Izin", "Alpha"])])
-            hadir_count = total_records - (late_count + sakit_cuti_count)
+            tidak_hadir_count = len(df_analytics[df_analytics["Status_Clean"].isin(["Sakit", "Cuti", "Izin", "Alpha"])])
 
             # Metric Cards
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Total Record Absensi", f"{total_records:,}")
             m2.metric("Total Hadir Normal", f"{hadir_count:,}", delta=f"{round(hadir_count/total_records*100, 1) if total_records else 0}%")
             m3.metric("Terlambat (Late)", f"{late_count:,}", delta=f"-{late_count}" if late_count > 0 else "0", delta_color="inverse")
-            m4.metric("Status Khusus (Sakit/Cuti/Izin/dll)", f"{sakit_cuti_count:,}")
+            m4.metric("Tidak Hadir (Sakit/Cuti/Izin/Alpha)", f"{tidak_hadir_count:,}")
 
             st.markdown("---")
 
@@ -810,23 +821,38 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                         values="Jumlah", 
                         title="Komposisi Status Kehadiran Karyawan",
                         hole=0.4,
-                        color_discrete_sequence=px.colors.qualitative.Set2
+                        color_discrete_map={
+                            "Hadir": "#66C2A5",
+                            "Sakit": "#FFC000",
+                            "Cuti": "#1F4E79",
+                            "Izin": "#17BECF",
+                            "Late": "#FC8D62",
+                            "Alpha": "#E78AC3"
+                        }
                     )
                     fig_status.update_traces(textposition="inside", textinfo="percent+label")
                     st.plotly_chart(fig_status, use_container_width=True)
                 
                 with c2:
-                    daily_trend = df_analytics.groupby("Tanggal_Clean")["ID"].count().reset_index(name="Total Scan")
+                    daily_trend = df_analytics.groupby(["Tanggal_Clean", "Status_Clean"])["ID"].count().reset_index(name="Total Scan")
                     fig_daily = px.bar(
                         daily_trend, 
                         x="Tanggal_Clean", 
                         y="Total Scan", 
-                        title="Volume Absensi Harian",
-                        color_discrete_sequence=["#1F4E79"],
-                        text="Total Scan"
+                        color="Status_Clean",
+                        title="Volume Absensi Harian (Berdasarkan Status)",
+                        text="Total Scan",
+                        color_discrete_map={
+                            "Hadir": "#1F4E79",
+                            "Sakit": "#FFC000",
+                            "Cuti": "#2CA02C",
+                            "Izin": "#17BECF",
+                            "Late": "#FF7F0E",
+                            "Alpha": "#D62728"
+                        }
                     )
                     fig_daily.update_xaxes(type='category', title_text="Tanggal")
-                    fig_daily.update_traces(textposition="outside")
+                    fig_daily.update_layout(legend_title_text="Status")
                     st.plotly_chart(fig_daily, use_container_width=True)
 
             with tab_shift:
@@ -852,10 +878,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             with tab_top_late:
                 df_late_only = df_analytics[df_analytics["Status_Clean"].isin(["Late", "Terlambat", "Sakit", "Cuti", "Izin", "Alpha"])]
                 if not df_late_only.empty:
-                    # Grouping berdasarkan Nama dan Status untuk melihat rincian per kategori
                     top_late = df_late_only.groupby(["Nama Lengkap", "Status_Clean"]).size().reset_index(name="Frekuensi")
-                    
-                    # Ambil 10 karyawan dengan frekuensi total terbanyak
                     top_employees = (
                         top_late.groupby("Nama Lengkap")["Frekuensi"]
                         .sum()
@@ -864,7 +887,6 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                     )
                     top_late = top_late[top_late["Nama Lengkap"].isin(top_employees)]
                     
-                    # Buat stacked bar chart berdasarkan jenis statusnya
                     fig_top = px.bar(
                         top_late,
                         x="Frekuensi",
@@ -951,11 +973,11 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             for col in df.columns:
                 sub_header = col[1]  # In / Out / Shift / Status
                 
-                # Kolom Status: Beri warna jika bernilai khusus
+                # Kolom Status: Beri warna jika bernilai khusus / tidak hadir
                 if sub_header == "Status":
                     for idx in df.index:
                         val_str = str(df.loc[idx, col]).strip().lower()
-                        if val_str in ["sakit", "cuti", "izin"]:
+                        if val_str in ["sakit", "cuti", "izin", "ijin"]:
                             styles_df.loc[idx, col] = "background-color: #FFC000; color: black; font-weight: bold;"
                         elif val_str in ["late", "terlambat"]:
                             styles_df.loc[idx, col] = "background-color: #FF0000; color: white; font-weight: bold;"
