@@ -100,7 +100,7 @@ def load_data():
         df = conn.read(worksheet="Master_Karyawan", ttl=0)
         if df is not None and not df.empty:
             if "ID" in df.columns:
-                df["ID"] = df["ID"].astype(str).str.strip()
+                df["ID"] = df["ID"].astype(str).str.strip().str.upper()
             if "Jabatan" in df.columns and "Posisi" not in df.columns:
                 df.rename(columns={"Jabatan": "Posisi"}, inplace=True)
             if "Site" not in df.columns:
@@ -117,7 +117,7 @@ def load_data():
             df = conn.read(ttl=0)
             if df is not None and not df.empty:
                 if "ID" in df.columns:
-                    df["ID"] = df["ID"].astype(str).str.strip()
+                    df["ID"] = df["ID"].astype(str).str.strip().str.upper()
                 if "Jabatan" in df.columns and "Posisi" not in df.columns:
                     df.rename(columns={"Jabatan": "Posisi"}, inplace=True)
                 if "Site" not in df.columns:
@@ -374,27 +374,27 @@ if menu_pilihan == "👥 Master Data Karyawan":
 
                 submit_btn = st.form_submit_button("Simpan Karyawan")
                 if submit_btn:
-                    clean_id = new_id.strip()
+                    clean_id = new_id.strip().upper()
                     existing_ids = (
-                        [str(x).strip().lower() for x in st.session_state.employees["ID"].values]
+                        [str(x).strip().upper() for x in st.session_state.employees["ID"].values]
                         if "ID" in st.session_state.employees.columns
                         else []
                     )
 
                     if not clean_id or not new_name or not new_role or not new_cc:
                         st.error("Mohon isi semua kolom yang wajib!")
-                    elif clean_id.lower() in existing_ids:
+                    elif clean_id in existing_ids:
                         st.error(f"❌ ID '{clean_id}' sudah digunakan!")
                     else:
                         new_row = {
                             "ID": clean_id,
-                            "Nama Lengkap": new_name,
-                            "Posisi": new_role,
-                            "Cost Center": new_cc,
+                            "Nama Lengkap": new_name.strip().title(),
+                            "Posisi": new_role.strip(),
+                            "Cost Center": new_cc.strip(),
                             "Tanggal Bergabung": new_join.strftime("%Y-%m-%d"),
                             "Akhir Kontrak": new_end.strftime("%Y-%m-%d"),
                             "Tanggal Resign": new_resign_date,
-                            "Site": new_site,
+                            "Site": new_site.strip(),
                             "Status": new_status,
                             "Terakhir Diperbarui": str(date.today()),
                         }
@@ -422,10 +422,10 @@ if menu_pilihan == "👥 Master Data Karyawan":
                         df_import["Terakhir Diperbarui"] = str(date.today())
 
                         existing_ids = set(
-                            str(x).strip().lower() for x in st.session_state.employees["ID"].values
+                            str(x).strip().upper() for x in st.session_state.employees["ID"].values
                         )
                         df_import_filtered = df_import[
-                            ~df_import["ID"].astype(str).str.strip().str.lower().isin(existing_ids)
+                            ~df_import["ID"].astype(str).str.strip().str.upper().isin(existing_ids)
                         ]
                         added_count = len(df_import_filtered)
 
@@ -443,20 +443,20 @@ if menu_pilihan == "👥 Master Data Karyawan":
                 if st.button("Mulai Import Teks") and pasted_text.strip():
                     lines = pasted_text.strip().split("\n")
                     added_rows = []
-                    existing_ids = set(str(x).strip().lower() for x in st.session_state.employees["ID"].values)
+                    existing_ids = set(str(x).strip().upper() for x in st.session_state.employees["ID"].values)
 
                     for line in lines:
                         delimiter = "\t" if "\t" in line else (";" if ";" in line else ",")
                         cols = [c.strip() for c in line.split(delimiter)]
                         if len(cols) >= 4:
-                            emp_id, name, role_title, cc = cols[0], cols[1], cols[2], cols[3]
+                            emp_id, name, role_title, cc = cols[0].upper(), cols[1].title(), cols[2], cols[3]
                             join_d = cols[4] if len(cols) > 4 else ""
                             end_d = cols[5] if len(cols) > 5 else ""
                             resign_d = cols[6] if len(cols) > 6 else "-"
                             site_val = cols[7] if len(cols) > 7 else ""
                             status_val = cols[8] if len(cols) > 8 else "Aktif"
 
-                            if emp_id.lower() not in existing_ids:
+                            if emp_id not in existing_ids:
                                 added_rows.append({
                                     "ID": emp_id,
                                     "Nama Lengkap": name,
@@ -469,7 +469,7 @@ if menu_pilihan == "👥 Master Data Karyawan":
                                     "Status": status_val,
                                     "Terakhir Diperbarui": str(date.today()),
                                 })
-                                existing_ids.add(emp_id.lower())
+                                existing_ids.add(emp_id)
 
                     if added_rows:
                         updated_df = pd.concat([st.session_state.employees, pd.DataFrame(added_rows)], ignore_index=True)
@@ -800,13 +800,13 @@ if menu_pilihan == "👥 Master Data Karyawan":
                             "Terakhir Diperbarui",
                         ],
                     ] = [
-                        e_name,
-                        e_role,
-                        e_cc,
-                        e_join,
-                        e_end,
-                        e_resign,
-                        e_site,
+                        e_name.strip().title(),
+                        e_role.strip(),
+                        e_cc.strip(),
+                        e_join.strip(),
+                        e_end.strip(),
+                        e_resign.strip(),
+                        e_site.strip(),
                         e_status,
                         str(date.today()),
                     ]
@@ -833,8 +833,8 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
         try:
             df_absen = conn.read(worksheet="Absensi_Karyawan", ttl=0)
             if df_absen is not None and not df_absen.empty:
-                df_absen["ID"] = df_absen["ID"].astype(str).str.strip()
-                df_absen["Nama Lengkap"] = df_absen["Nama Lengkap"].astype(str).str.strip()
+                df_absen["ID"] = df_absen["ID"].astype(str).str.strip().str.upper()
+                df_absen["Nama Lengkap"] = df_absen["Nama Lengkap"].astype(str).str.strip().str.title()
                 df_absen["Tanggal"] = pd.to_datetime(df_absen["Tanggal"]).dt.strftime("%Y-%m-%d")
                 if "Status" not in df_absen.columns:
                     df_absen["Status"] = "Hadir"
@@ -874,8 +874,8 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                         df_upload["Status"] = "Hadir"
 
                     df_upload["Tanggal"] = pd.to_datetime(df_upload["Tanggal"]).dt.strftime("%Y-%m-%d")
-                    df_upload["ID"] = df_upload["ID"].astype(str).str.strip()
-                    df_upload["Nama Lengkap"] = df_upload["Nama Lengkap"].astype(str).str.strip()
+                    df_upload["ID"] = df_upload["ID"].astype(str).str.strip().str.upper()
+                    df_upload["Nama Lengkap"] = df_upload["Nama Lengkap"].astype(str).str.strip().str.title()
 
                     df_lama = load_absensi_data()
                     updated_absensi = pd.concat([df_lama, df_upload], ignore_index=True)
@@ -1112,19 +1112,50 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
         if selected_site != "Semua Site":
             df_absen = df_absen[df_absen["Site"] == selected_site]
 
+        # --- BERSIHKAN STRING ID & NAMA DENGAN KETAT UNTUK MENCEGAH DUPLIKASI ---
         df_absen_clean = df_absen.copy()
-        df_absen_clean["ID"] = df_absen_clean["ID"].astype(str).str.strip()
-        df_absen_clean["Nama Lengkap"] = df_absen_clean["Nama Lengkap"].astype(str).str.strip()
+        df_absen_clean["ID"] = (
+            df_absen_clean["ID"].astype(str).str.strip().str.upper()
+        )
+        df_absen_clean["Nama Lengkap"] = (
+            df_absen_clean["Nama Lengkap"]
+            .astype(str)
+            .str.strip()
+            .str.title()
+        )
 
+        # Map ID ke Nama Terbaru agar 1 ID HANYA MENGGUNAKAN 1 NAMA
+        # (Mencegah double ID jika ada perbedaan penulisan nama)
+        id_to_name = (
+            df_absen_clean.groupby("ID")["Nama Lengkap"]
+            .last()
+            .to_dict()
+        )
+        df_absen_clean["Nama Lengkap"] = df_absen_clean["ID"].map(
+            id_to_name
+        )
+
+        # Deduplikasi: Jika ada scan berulang pada hari yang sama, ambil scan terbaru
         df_absen_clean = df_absen_clean.sort_values(
             by=["ID", "Tanggal", "In"], ascending=[True, True, False]
         )
-        df_absen_clean = df_absen_clean.drop_duplicates(subset=["ID", "Tanggal"], keep="first").copy()
+        df_absen_clean = df_absen_clean.drop_duplicates(
+            subset=["ID", "Tanggal"], keep="first"
+        ).copy()
 
-        df_absen_clean["Tgl_Format"] = pd.to_datetime(df_absen_clean["Tanggal"]).dt.strftime("%d-%b\n%a")
+        # Proses Format Tanggal
+        df_absen_clean["Tgl_Format"] = pd.to_datetime(
+            df_absen_clean["Tanggal"]
+        ).dt.strftime("%d-%b\n%a")
 
+        # Format desimal shift (1.000000 -> 1)
         def clean_shift(val):
-            if pd.isna(val) or str(val).strip().lower() in ["none", "nan", "", "-"]:
+            if pd.isna(val) or str(val).strip().lower() in [
+                "none",
+                "nan",
+                "",
+                "-",
+            ]:
                 return "-"
             try:
                 val_float = float(val)
@@ -1134,8 +1165,11 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             except ValueError:
                 return str(val)
 
-        df_absen_clean["Shift"] = df_absen_clean["Shift"].apply(clean_shift)
+        df_absen_clean["Shift"] = df_absen_clean["Shift"].apply(
+            clean_shift
+        )
 
+        # Unpivot (Melt)
         df_melted = df_absen_clean.melt(
             id_vars=["ID", "Nama Lengkap", "Tgl_Format"],
             value_vars=["In", "Out", "Shift", "Status"],
@@ -1143,6 +1177,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             value_name="Value",
         )
 
+        # Pivot Matrix
         matrix_df = df_melted.pivot_table(
             index=["ID", "Nama Lengkap"],
             columns=["Tgl_Format", "SubHeader"],
@@ -1150,14 +1185,24 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             aggfunc="first",
         )
 
-        matrix_df = matrix_df.reindex(columns=["In", "Out", "Shift", "Status"], level=1)
-        matrix_df = matrix_df.fillna("-")
-        matrix_df = matrix_df.map(
-            lambda x: "-" if str(x).strip().lower() in ["none", "nan", ""] else x
+        # Urutkan sub-header: In | Out | Shift | Status
+        matrix_df = matrix_df.reindex(
+            columns=["In", "Out", "Shift", "Status"], level=1
         )
 
+        # Ubah nilai kosong / NaN menjadi '-'
+        matrix_df = matrix_df.fillna("-")
+        matrix_df = matrix_df.map(
+            lambda x: (
+                "-" if str(x).strip().lower() in ["none", "nan", ""] else x
+            )
+        )
+
+        # Fungsi Styling Matrix
         def apply_matrix_styles(df):
-            styles_df = pd.DataFrame("", index=df.index, columns=df.columns)
+            styles_df = pd.DataFrame(
+                "", index=df.index, columns=df.columns
+            )
 
             for col in df.columns:
                 sub_header = col[1]
@@ -1167,20 +1212,30 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                         val_str = str(df.loc[idx, col]).strip().lower()
                         if val_str in ["sakit", "cuti", "izin", "ijin"]:
                             styles_df.loc[idx, col] = (
-                                "background-color: #FFC000; color: black; font-weight: bold;"
+                                "background-color: #FFC000; color:"
+                                " black; font-weight: bold;"
                             )
                         elif val_str in ["late", "terlambat"]:
                             styles_df.loc[idx, col] = (
-                                "background-color: #FF0000; color: white; font-weight: bold;"
+                                "background-color: #FF0000; color:"
+                                " white; font-weight: bold;"
                             )
-                        elif val_str in ["alpha", "mangkir", "tidak hadir"]:
+                        elif val_str in [
+                            "alpha",
+                            "mangkir",
+                            "tidak hadir",
+                        ]:
                             styles_df.loc[idx, col] = (
-                                "background-color: #8B0000; color: white; font-weight: bold;"
+                                "background-color: #8B0000; color:"
+                                " white; font-weight: bold;"
                             )
 
             return styles_df
 
-        styled_matrix = matrix_df.style.apply(apply_matrix_styles, axis=None).set_properties(
+        # Terapkan styling
+        styled_matrix = matrix_df.style.apply(
+            apply_matrix_styles, axis=None
+        ).set_properties(
             **{
                 "text-align": "center",
                 "font-size": "12px",
