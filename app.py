@@ -801,10 +801,10 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
         # Urutkan sub-header secara tegas: In | Out | Shift | Status
         matrix_df = matrix_df.reindex(columns=["In", "Out", "Shift", "Status"], level=1)
 
-        # --- FIX UTAMA: GANTI SEMUA NILAI KOSONG / None / nan MENJADI STRIP (-) ---
+        # --- FIX UTAMA: GUNAKAN .map() SEBAGAI PENGGANTI .applymap() ---
         matrix_df = matrix_df.fillna("-")
-        matrix_df = matrix_df.applymap(
-            lambda x: "-" if str(x).strip().lower() in ["none", "nan", "nan", ""] else x
+        matrix_df = matrix_df.map(
+            lambda x: "-" if str(x).strip().lower() in ["none", "nan", ""] else x
         )
 
         # Fungsi Styling Spesifik Berdasarkan SubHeader
