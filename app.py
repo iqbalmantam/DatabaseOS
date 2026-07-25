@@ -784,15 +784,6 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
 
         df_absen_copy["Shift"] = df_absen_copy["Shift"].apply(clean_shift)
 
-        # Pembersihan nilai 'None', 'nan', 'NaN' menjadi '-' untuk kolom In, Out, Status
-        for col in ["In", "Out", "Status"]:
-            if col in df_absen_copy.columns:
-                df_absen_copy[col] = (
-                    df_absen_copy[col]
-                    .astype(str)
-                    .replace(["None", "nan", "NaN", "none", "NONE", ""], "-")
-                )
-
         df_melted = df_absen_copy.melt(
             id_vars=["ID", "Nama Lengkap", "Site", "Job Title", "Tgl_Format"],
             value_vars=["In", "Out", "Shift", "Status"],
@@ -809,6 +800,12 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
 
         # Urutkan sub-header secara tegas: In | Out | Shift | Status
         matrix_df = matrix_df.reindex(columns=["In", "Out", "Shift", "Status"], level=1)
+
+        # --- FIX UTAMA: GANTI SEMUA NILAI KOSONG / None / nan MENJADI STRIP (-) ---
+        matrix_df = matrix_df.fillna("-")
+        matrix_df = matrix_df.applymap(
+            lambda x: "-" if str(x).strip().lower() in ["none", "nan", "nan", ""] else x
+        )
 
         # Fungsi Styling Spesifik Berdasarkan SubHeader
         def apply_matrix_styles(df):
