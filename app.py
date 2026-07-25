@@ -28,6 +28,62 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
+# --- SISTEM PROTEKSI PASSWORD APPS ---
+def check_password():
+    """Memeriksa apakah pengguna sudah memasukkan password aplikasi yang benar."""
+
+    def password_entered():
+        if st.session_state["app_password_input"] == st.secrets["PASSWORD"]:
+            st.session_state["app_password_correct"] = True
+            del st.session_state["app_password_input"]  # Hapus demi keamanan
+        else:
+            st.session_state["app_password_correct"] = False
+
+    if (
+        "app_password_correct" not in st.session_state
+        or not st.session_state["app_password_correct"]
+    ):
+        st.markdown("<br>", unsafe_allow_html=True)
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.title("🔒 Database Karyawan OS ARU")
+            st.caption("Silakan masukkan password untuk mengakses aplikasi.")
+
+            st.text_input(
+                "Masukkan Password:",
+                type="password",
+                on_change=password_entered,
+                key="app_password_input",
+            )
+
+            if (
+                "app_password_correct" in st.session_state
+                and not st.session_state["app_password_correct"]
+            ):
+                st.error("❌ Password salah. Silakan coba lagi.")
+
+        return False
+    else:
+        return True
+
+
+# Hentikan eksekusi script jika password belum benar
+if not check_password():
+    st.stop()
+
+
+# ==============================================================================
+# JIKA PASSWORD BENAR, APLIKASI DI BAWAH INI AKAN DIJANLANKAN
+# ==============================================================================
+
+# Tombol Log Out di Sidebar Utama
+if st.sidebar.button("🚪 Keluar Aplikasi"):
+    st.session_state["app_password_correct"] = False
+    st.rerun()
+
+st.sidebar.markdown("---")
+
 # --- PIN ADMINISTRATOR ---
 ADMIN_PIN = "2273"
 
@@ -103,7 +159,7 @@ def save_data(df):
     st.session_state.employees = df
 
 
-# Generator PDF (Sudah Diperbaiki)
+# Generator PDF
 def generate_pdf(df):
     pdf = FPDF(orientation="L", unit="mm", format="A4")
     pdf.add_page()
