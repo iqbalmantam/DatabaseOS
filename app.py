@@ -856,24 +856,50 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                     st.plotly_chart(fig_daily, use_container_width=True)
 
             with tab_shift:
-                if "Shift" in df_analytics.columns:
+                if "Shift" in df_analytics.columns and "Tanggal_Clean" in df_analytics.columns:
                     shift_df = df_analytics.copy()
-                    shift_df["Shift_Clean"] = shift_df["Shift"].astype(str).str.replace(".0", "", regex=False)
-                    shift_counts = shift_df["Shift_Clean"].value_counts().reset_index()
-                    shift_counts.columns = ["Shift", "Jumlah Karyawan"]
                     
-                    fig_shift = px.bar(
-                        shift_counts,
-                        x="Shift",
-                        y="Jumlah Karyawan",
-                        text="Jumlah Karyawan",
-                        title="Jumlah Absensi Berdasarkan Pembagian Shift",
-                        color="Jumlah Karyawan",
-                        color_continuous_scale="Viridis"
-                    )
-                    fig_shift.update_xaxes(type='category')
-                    fig_shift.update_traces(textposition="outside")
-                    st.plotly_chart(fig_shift, use_container_width=True)
+                    # 1. Bersihkan format string shift
+                    shift_df["Shift_Clean"] = shift_df["Shift"].astype(str).str.replace(".0", "", regex=False).str.strip().str.upper()
+                    
+                    # 2. Filter khusus Shift 1, 2, 3, dan Middle (M)
+                    target_shifts = ["1", "2", "3", "M"]
+                    shift_filtered = shift_df[shift_df["Shift_Clean"].isin(target_shifts)]
+                    
+                    if not shift_filtered.empty:
+                        # 3. Hitung jumlah hari unik pada dataset sebagai pembagi
+                        total_days = shift_df["Tanggal_Clean"].nunique()
+                        
+                        # 4. Hitung Rata-Rata Karyawan per Hari per Shift
+                        shift_avg = (
+                            shift_filtered.groupby("Shift_Clean")["ID"]
+                            .count()
+                            .div(total_days)
+                            .round(1)
+                            .reset_index(name="Rata_Rata_Karyawan")
+                        )
+                        
+                        # Urutkan batang secara logis: 1 -> 2 -> 3 -> M
+                        shift_order = {"1": 1, "2": 2, "3": 3, "M": 4}
+                        shift_avg["Order"] = shift_avg["Shift_Clean"].map(shift_order)
+                        shift_avg = shift_avg.sort_values("Order")
+                        
+                        # 5. Visualisasi Bar Chart Rata-Rata
+                        fig_shift = px.bar(
+                            shift_avg,
+                            x="Shift_Clean",
+                            y="Rata_Rata_Karyawan",
+                            text="Rata_Rata_Karyawan",
+                            title=f"Rata-Rata Jumlah Karyawan per Hari (Total {total_days} Hari Data)",
+                            color="Rata_Rata_Karyawan",
+                            color_continuous_scale="Viridis",
+                            labels={"Shift_Clean": "Shift Work", "Rata_Rata_Karyawan": "Rata-Rata Orang / Hari"}
+                        )
+                        fig_shift.update_xaxes(type='category')
+                        fig_shift.update_traces(textposition="outside", texttemplate='%{text} orang/hari')
+                        st.plotly_chart(fig_shift, use_container_width=True)
+                    else:
+                        st.info("Tidak ditemukan data untuk Shift 1, 2, 3, atau Middle (M).")
 
             with tab_top_late:
                 df_late_only = df_analytics[df_analytics["Status_Clean"].isin(["Late", "Terlambat", "Sakit", "Cuti", "Izin", "Tidak Hadir"])]
