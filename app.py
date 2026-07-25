@@ -770,6 +770,29 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
         df_absen_copy = df_absen.copy()
         df_absen_copy["Tgl_Format"] = pd.to_datetime(df_absen_copy["Tanggal"]).dt.strftime("%d-%b\n%a")
 
+        # --- FIX 1: TANGANI FORMAT DESIMAL SHIFT (1.000000 -> 1) ---
+        def clean_shift(val):
+            if pd.isna(val) or str(val).strip().lower() in ["none", "nan", "", "-"]:
+                return "-"
+            try:
+                val_float = float(val)
+                if val_float.is_integer():
+                    return str(int(val_float))
+                return str(val)
+            except ValueError:
+                return str(val)
+
+        df_absen_copy["Shift"] = df_absen_copy["Shift"].apply(clean_shift)
+
+        # Pembersihan kolom In, Out, dan Status dari nilai 'None' / 'nan'
+        for col in ["In", "Out", "Status"]:
+            if col in df_absen_copy.columns:
+                df_absen_copy[col] = (
+                    df_absen_copy[col]
+                    .astype(str)
+                    .replace(["None", "nan", "NaN", ""], "-")
+                )
+
         df_melted = df_absen_copy.melt(
             id_vars=["ID", "Nama Lengkap", "Site", "Job Title", "Tgl_Format"],
             value_vars=["In", "Out", "Shift", "Status"],
@@ -784,13 +807,15 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             aggfunc="first",
         )
 
-        # Urutkan sub-header menjadi: In | Out | Sta (Shift) | Status
+        # Urutkan sub-header menjadi: In | Out | Shift | Status
         matrix_df = matrix_df.reindex(columns=["In", "Out", "Shift", "Status"], level=1)
-        matrix_df = matrix_df.rename(columns={"Shift": "Sta"}, level=1)
 
-        # Styling Warna Kuning untuk Sta dan Warna Khusus untuk Status
-        def highlight_cols(val):
-            if pd.isna(val) or val == "":
+        # --- FIX 2: UBAH HEADER SUBLABEL 'Shift' MENJADI 'Status' (SESUAI INSTRUKSI) ---
+        matrix_df = matrix_df.rename(columns={"Shift": "Status"}, level=1)
+
+        # Styling Warna Kuning untuk Shift/Status dan Warna Khusus untuk Keterangan
+        def highlight_keterangan(val):
+            if pd.isna(val) or val in ["-", ""]:
                 return ""
             val_str = str(val).strip().lower()
             if val_str in ["sakit", "cuti", "izin"]:
@@ -801,19 +826,19 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                 return "background-color: #8B0000; color: white; font-weight: bold;"  # Merah Tua
             return ""
 
-        def highlight_sta(val):
-            if pd.notna(val) and val != "":
+        def highlight_shift_yellow(val):
+            if pd.notna(val) and val not in ["-", ""]:
                 return "background-color: #FFFF00; color: black; font-weight: bold;"  # Kuning
             return ""
 
         # Terapkan styling
         styled_matrix = (
             matrix_df.style.map(
-                highlight_sta,
-                subset=pd.IndexSlice[:, [c for c in matrix_df.columns if c[1] == "Sta"]],
+                highlight_shift_yellow,
+                subset=pd.IndexSlice[:, [c for c in matrix_df.columns if c[1] in ["Status", "Sta"]]],
             )
             .map(
-                highlight_cols,
+                highlight_keterangan,
                 subset=pd.IndexSlice[:, [c for c in matrix_df.columns if c[1] == "Status"]],
             )
             .set_properties(
