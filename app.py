@@ -750,11 +750,112 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                     except Exception as e:
                         st.error(f"Gagal memproses file Excel: {e}")
 
-    # 3. TAMPILAN MATRIKS ABSENSI HORISONTAL (PIVOT)
+    # 3. DASHBOARD ANALYTICS ABSENSI
+    df_absen = st.session_state.df_absensi
+
+    if not df_absen.empty:
+        with st.expander("📊 **Dashboard Analytics & Visualisasi Data Absensi**", expanded=True):
+            df_analytics = df_absen.copy()
+            
+            # Formating Status
+            df_analytics["Status_Clean"] = df_analytics["Status"].astype(str).str.strip().str.title()
+            df_analytics["Status_Clean"] = df_analytics["Status_Clean"].replace(
+                {"None": "Hadir", "Nan": "Hadir", "-": "Hadir", "": "Hadir"}
+            )
+            
+            total_records = len(df_analytics)
+            late_count = len(df_analytics[df_analytics["Status_Clean"].isin(["Late", "Terlambat"])])
+            sakit_cuti_count = len(df_analytics[df_analytics["Status_Clean"].isin(["Sakit", "Cuti", "Izin", "Scw"])])
+            hadir_count = total_records - (late_count + sakit_cuti_count)
+
+            # Metric Cards
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Total Record Absensi", f"{total_records:,}")
+            m2.metric("Total Hadir Normal", f"{hadir_count:,}", delta=f"{round(hadir_count/total_records*100, 1) if total_records else 0}%")
+            m3.metric("Terlambat (Late)", f"{late_count:,}", delta=f"-{late_count}", delta_color="inverse")
+            m4.metric("Sakit / Cuti / Izin / SCW", f"{sakit_cuti_count:,}")
+
+            st.markdown("---")
+
+            # Chart Tabs
+            tab_stat, tab_shift, tab_top_late = st.tabs([
+                "📊 Ringkasan Status", "⏱️ Sebaran Shift Work", "⚠️ Catatan Status Khusus"
+            ])
+
+            with tab_stat:
+                c1, c2 = st.columns(2)
+                with c1:
+                    status_counts = df_analytics["Status_Clean"].value_counts().reset_index()
+                    status_counts.columns = ["Status", "Jumlah"]
+                    fig_status = px.pie(
+                        status_counts, 
+                        names="Status", 
+                        values="Jumlah", 
+                        title="Komposisi Status Kehadiran Karyawan",
+                        hole=0.4,
+                        color_discrete_sequence=px.colors.qualitative.Set2
+                    )
+                    fig_status.update_traces(textposition="inside", textinfo="percent+label")
+                    st.plotly_chart(fig_status, use_container_width=True)
+                
+                with c2:
+                    if "Tanggal" in df_analytics.columns:
+                        daily_trend = df_analytics.groupby("Tanggal")["ID"].count().reset_index(name="Total Scan")
+                        fig_daily = px.bar(
+                            daily_trend, 
+                            x="Tanggal", 
+                            y="Total Scan", 
+                            title="Volume Absensi Harian",
+                            color_discrete_sequence=["#1F4E79"],
+                            text="Total Scan"
+                        )
+                        fig_daily.update_traces(textposition="outside")
+                        st.plotly_chart(fig_daily, use_container_width=True)
+
+            with tab_shift:
+                if "Shift" in df_analytics.columns:
+                    shift_df = df_analytics.copy()
+                    shift_df["Shift_Clean"] = shift_df["Shift"].astype(str).str.replace(".0", "", regex=False)
+                    shift_counts = shift_df["Shift_Clean"].value_counts().reset_index()
+                    shift_counts.columns = ["Shift", "Jumlah Karyawan"]
+                    
+                    fig_shift = px.bar(
+                        shift_counts,
+                        x="Shift",
+                        y="Jumlah Karyawan",
+                        text="Jumlah Karyawan",
+                        title="Jumlah Absensi Berdasarkan Pembagian Shift",
+                        color="Jumlah Karyawan",
+                        color_continuous_scale="Viridis"
+                    )
+                    fig_shift.update_traces(textposition="outside")
+                    st.plotly_chart(fig_shift, use_container_width=True)
+
+            with tab_top_late:
+                df_late_only = df_analytics[df_analytics["Status_Clean"].isin(["Late", "Terlambat", "Sakit", "Cuti", "Alpha", "Scw"])]
+                if not df_late_only.empty:
+                    top_late = df_late_only["Nama Lengkap"].value_counts().head(10).reset_index()
+                    top_late.columns = ["Nama Karyawan", "Frekuensi"]
+                    
+                    fig_top = px.bar(
+                        top_late,
+                        x="Frekuensi",
+                        y="Nama Karyawan",
+                        orientation="h",
+                        title="Top 10 Karyawan Catatan Khusus (Late/Sakit/Cuti/SCW)",
+                        color="Frekuensi",
+                        color_continuous_scale="Reds",
+                        text="Frekuensi"
+                    )
+                    fig_top.update_layout(yaxis={"categoryorder": "total ascending"})
+                    fig_top.update_traces(textposition="outside")
+                    st.plotly_chart(fig_top, use_container_width=True)
+                else:
+                    st.success("🎉 Tidak ditemukan catatan keterlambatan atau ketidakhadiran khusus pada data absensi saat ini.")
+
+    # 4. TAMPILAN MATRIKS ABSENSI HORISONTAL (PIVOT)
     st.divider()
     st.subheader("📊 Timesheet Matrix")
-
-    df_absen = st.session_state.df_absensi
 
     if df_absen.empty:
         st.warning("Belum ada data absensi di Google Sheets. Silakan upload file Excel terlebih dahulu.")
@@ -801,7 +902,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
         # Urutkan sub-header secara tegas: In | Out | Shift | Status
         matrix_df = matrix_df.reindex(columns=["In", "Out", "Shift", "Status"], level=1)
 
-        # --- FIX UTAMA: GUNAKAN .map() SEBAGAI PENGGANTI .applymap() ---
+        # Ubah semua nilai kosong / None / nan menjadi tanda strip (-)
         matrix_df = matrix_df.fillna("-")
         matrix_df = matrix_df.map(
             lambda x: "-" if str(x).strip().lower() in ["none", "nan", ""] else x
