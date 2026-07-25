@@ -12,7 +12,7 @@ from streamlit_gsheets import GSheetsConnection
 
 # Set Halaman Streamlit
 st.set_page_config(
-    page_title="Employee Database System", page_icon="👥", layout="wide"
+    page_title="Employee Database Manager", page_icon="👥", layout="wide"
 )
 
 # --- SEMBUNYIKAN MENU KANAN ATAS ---
@@ -47,7 +47,7 @@ def check_password():
         st.markdown("<br>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            st.title("🔒 Employee Database System")
+            st.title("🔒 Employee Database Manager")
             st.caption("Silakan masukkan password untuk mengakses aplikasi.")
 
             st.text_input(
