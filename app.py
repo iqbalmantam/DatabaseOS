@@ -94,7 +94,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 st.sidebar.header("📁 Menu Utama")
 menu_pilihan = st.sidebar.radio(
     "Pilih Halaman:",
-    ["👥 Master Data Karyawan", "⏱️ Rekap Absensi (Timesheet)"]
+    ["👥 Master Data Karyawan", "⏱️ Rekap Absensi (Timesheet)"],
 )
 st.sidebar.markdown("---")
 
@@ -102,6 +102,7 @@ st.sidebar.markdown("---")
 # ==============================================================================
 # FUNGSI HELPER MASTER KARYAWAN
 # ==============================================================================
+
 
 def load_data():
     try:
@@ -154,6 +155,7 @@ def load_data():
                 ]
             )
 
+
 def load_snapshot_data():
     try:
         df_snap = conn.read(worksheet="Snapshot_Bulanan", ttl=0)
@@ -161,9 +163,11 @@ def load_snapshot_data():
     except Exception:
         return pd.DataFrame()
 
+
 def save_data(df):
     conn.update(worksheet="Master_Karyawan", data=df)
     st.session_state.employees = df
+
 
 def generate_pdf(df):
     pdf = FPDF(orientation="L", unit="mm", format="A4")
@@ -205,19 +209,56 @@ def generate_pdf(df):
     pdf.set_font("Helvetica", "", 7)
     for _, row in df.iterrows():
         pdf.cell(col_widths[0], 6, str(row.get("ID", "")), border=1, align="C")
-        pdf.cell(col_widths[1], 6, str(row.get("Nama Lengkap", ""))[:25], border=1)
+        pdf.cell(
+            col_widths[1], 6, str(row.get("Nama Lengkap", ""))[:25], border=1
+        )
         pdf.cell(col_widths[2], 6, str(row.get("Posisi", ""))[:20], border=1)
-        pdf.cell(col_widths[3], 6, str(row.get("Cost Center", "")), border=1, align="C")
-        pdf.cell(col_widths[4], 6, str(row.get("Tanggal Bergabung", "")), border=1, align="C")
-        pdf.cell(col_widths[5], 6, str(row.get("Akhir Kontrak", "")), border=1, align="C")
-        pdf.cell(col_widths[6], 6, str(row.get("Tanggal Resign", "-")), border=1, align="C")
-        pdf.cell(col_widths[7], 6, str(row.get("Site", "")), border=1, align="C")
-        pdf.cell(col_widths[8], 6, str(row.get("Status", "Aktif")), border=1, align="C")
-        pdf.cell(col_widths[9], 6, str(row.get("Terakhir Diperbarui", "")), border=1, align="C")
+        pdf.cell(
+            col_widths[3], 6, str(row.get("Cost Center", "")), border=1, align="C"
+        )
+        pdf.cell(
+            col_widths[4],
+            6,
+            str(row.get("Tanggal Bergabung", "")),
+            border=1,
+            align="C",
+        )
+        pdf.cell(
+            col_widths[5],
+            6,
+            str(row.get("Akhir Kontrak", "")),
+            border=1,
+            align="C",
+        )
+        pdf.cell(
+            col_widths[6],
+            6,
+            str(row.get("Tanggal Resign", "-")),
+            border=1,
+            align="C",
+        )
+        pdf.cell(
+            col_widths[7], 6, str(row.get("Site", "")), border=1, align="C"
+        )
+        pdf.cell(
+            col_widths[8],
+            6,
+            str(row.get("Status", "Aktif")),
+            border=1,
+            align="C",
+        )
+        pdf.cell(
+            col_widths[9],
+            6,
+            str(row.get("Terakhir Diperbarui", "")),
+            border=1,
+            align="C",
+        )
         pdf.ln()
 
     out = pdf.output()
     return bytes(out) if isinstance(out, (str, bytearray)) else out
+
 
 def generate_excel_formatted(df):
     wb = openpyxl.Workbook()
@@ -225,10 +266,14 @@ def generate_excel_formatted(df):
     ws.title = "Rekap Karyawan"
 
     header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-    header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+    header_fill = PatternFill(
+        start_color="1F4E79", end_color="1F4E79", fill_type="solid"
+    )
     data_font = Font(name="Calibri", size=10)
     border_thin = Side(border_style="thin", color="D9D9D9")
-    border_box = Border(left=border_thin, right=border_thin, top=border_thin, bottom=border_thin)
+    border_box = Border(
+        left=border_thin, right=border_thin, top=border_thin, bottom=border_thin
+    )
 
     ws.merge_cells("A1:J1")
     ws["A1"] = "LAPORAN DATABASE KARYAWAN"
@@ -236,7 +281,10 @@ def generate_excel_formatted(df):
     ws["A1"].alignment = Alignment(horizontal="left", vertical="center")
 
     ws.merge_cells("A2:J2")
-    ws["A2"] = f"Tanggal Ekspor: {date.today().strftime('%d-%m-%Y')} | Total Record: {len(df)}"
+    ws["A2"] = (
+        f"Tanggal Ekspor: {date.today().strftime('%d-%m-%Y')} | Total Record:"
+        f" {len(df)}"
+    )
     ws["A2"].font = Font(name="Calibri", size=10, italic=True, color="595959")
     ws.row_dimensions[1].height = 25
     ws.row_dimensions[2].height = 18
@@ -263,9 +311,16 @@ def generate_excel_formatted(df):
             cell.font = data_font
             cell.border = border_box
             if headers[c_idx - 1] in [
-                "ID", "Tanggal Bergabung", "Akhir Kontrak", "Tanggal Resign", "Status", "Terakhir Diperbarui"
+                "ID",
+                "Tanggal Bergabung",
+                "Akhir Kontrak",
+                "Tanggal Resign",
+                "Status",
+                "Terakhir Diperbarui",
             ]:
-                cell.alignment = Alignment(horizontal="center", vertical="center")
+                cell.alignment = Alignment(
+                    horizontal="center", vertical="center"
+                )
 
     for col in ws.columns:
         max_len = 0
@@ -279,8 +334,10 @@ def generate_excel_formatted(df):
     wb.save(output)
     return output.getvalue()
 
+
 if "employees" not in st.session_state:
     st.session_state.employees = load_data()
+
 
 def generate_next_id():
     df = st.session_state.employees
@@ -362,25 +419,42 @@ if menu_pilihan == "👥 Master Data Karyawan":
                 new_name = st.text_input("Nama Lengkap")
                 new_role = st.text_input("Posisi")
                 new_cc = st.text_input("Cost Center", placeholder="CC-101")
-                new_join = st.date_input("Tanggal Bergabung", value=date.today())
+                new_join = st.date_input(
+                    "Tanggal Bergabung", value=date.today()
+                )
                 new_end = st.date_input("Akhir Kontrak", value=date.today())
-                new_site = st.text_input("Site / Lokasi Kerja", placeholder="Contoh: JDC / Head Office")
-                new_status = st.selectbox("Status Karyawan", ["Aktif", "Resign", "PKWT"])
+                new_site = st.text_input(
+                    "Site / Lokasi Kerja",
+                    placeholder="Contoh: JDC / Head Office",
+                )
+                new_status = st.selectbox(
+                    "Status Karyawan", ["Aktif", "Resign", "PKWT"]
+                )
 
                 new_resign_date = "-"
                 if new_status == "Resign":
-                    new_resign_date = st.date_input("Tanggal Resign", value=date.today()).strftime("%Y-%m-%d")
+                    new_resign_date = st.date_input(
+                        "Tanggal Resign", value=date.today()
+                    ).strftime("%Y-%m-%d")
 
                 submit_btn = st.form_submit_button("Simpan Karyawan")
                 if submit_btn:
                     clean_id = new_id.strip()
                     existing_ids = (
-                        [str(x).strip().lower() for x in st.session_state.employees["ID"].values]
+                        [
+                            str(x).strip().lower()
+                            for x in st.session_state.employees["ID"].values
+                        ]
                         if "ID" in st.session_state.employees.columns
                         else []
                     )
 
-                    if not clean_id or not new_name or not new_role or not new_cc:
+                    if (
+                        not clean_id
+                        or not new_name
+                        or not new_role
+                        or not new_cc
+                    ):
                         st.error("Mohon isi semua kolom yang wajib!")
                     elif clean_id.lower() in existing_ids:
                         st.error(f"❌ ID '{clean_id}' sudah digunakan!")
@@ -397,38 +471,73 @@ if menu_pilihan == "👥 Master Data Karyawan":
                             "Status": new_status,
                             "Terakhir Diperbarui": str(date.today()),
                         }
-                        updated_df = pd.concat([st.session_state.employees, pd.DataFrame([new_row])], ignore_index=True)
+                        updated_df = pd.concat(
+                            [
+                                st.session_state.employees,
+                                pd.DataFrame([new_row]),
+                            ],
+                            ignore_index=True,
+                        )
                         save_data(updated_df)
-                        st.success(f"✅ ID '{clean_id}' berhasil ditambahkan!")
+                        st.success(
+                            f"✅ ID '{clean_id}' berhasil ditambahkan!"
+                        )
                         st.rerun()
 
         # 2. Bulk Import Data Master
         with st.sidebar.expander("📥 Import Banyak Data", expanded=False):
-            import_type = st.radio("Metode Import:", ["File CSV", "Tempel Teks (Excel/TSV)"])
+            import_type = st.radio(
+                "Metode Import:", ["File CSV", "Tempel Teks (Excel/TSV)"]
+            )
 
             if import_type == "File CSV":
-                uploaded_file = st.file_uploader("Pilih file CSV", type=["csv"])
+                uploaded_file = st.file_uploader(
+                    "Pilih file CSV", type=["csv"]
+                )
                 if uploaded_file is not None:
                     if st.button("Mulai Import File"):
                         try:
-                            df_import = pd.read_csv(uploaded_file, dtype={"ID": str})
-                            df_import.columns = [c.strip() for c in df_import.columns]
+                            df_import = pd.read_csv(
+                                uploaded_file, dtype={"ID": str}
+                            )
+                            df_import.columns = [
+                                c.strip() for c in df_import.columns
+                            ]
                             if "Jabatan" in df_import.columns:
-                                df_import.rename(columns={"Jabatan": "Posisi"}, inplace=True)
+                                df_import.rename(
+                                    columns={"Jabatan": "Posisi"}, inplace=True
+                                )
                             if "Status" not in df_import.columns:
                                 df_import["Status"] = "Aktif"
                             if "Tanggal Resign" not in df_import.columns:
                                 df_import["Tanggal Resign"] = "-"
                             df_import["Terakhir Diperbarui"] = str(date.today())
 
-                            existing_ids = set(str(x).strip().lower() for x in st.session_state.employees["ID"].values)
-                            df_import_filtered = df_import[~df_import["ID"].astype(str).str.strip().str.lower().isin(existing_ids)]
+                            existing_ids = set(
+                                str(x).strip().lower()
+                                for x in st.session_state.employees["ID"].values
+                            )
+                            df_import_filtered = df_import[
+                                ~df_import["ID"]
+                                .astype(str)
+                                .str.strip()
+                                .str.lower()
+                                .isin(existing_ids)
+                            ]
                             added_count = len(df_import_filtered)
 
                             if added_count > 0:
-                                updated_df = pd.concat([st.session_state.employees, df_import_filtered], ignore_index=True)
+                                updated_df = pd.concat(
+                                    [
+                                        st.session_state.employees,
+                                        df_import_filtered,
+                                    ],
+                                    ignore_index=True,
+                                )
                                 save_data(updated_df)
-                                st.success(f"Berhasil mengimpor {added_count} data!")
+                                st.success(
+                                    f"Berhasil mengimpor {added_count} data!"
+                                )
                                 st.rerun()
                             else:
                                 st.error("Semua ID pada file sudah terdaftar!")
@@ -440,62 +549,118 @@ if menu_pilihan == "👥 Master Data Karyawan":
                     if pasted_text.strip():
                         lines = pasted_text.strip().split("\n")
                         added_rows = []
-                        existing_ids = set(str(x).strip().lower() for x in st.session_state.employees["ID"].values)
+                        existing_ids = set(
+                            str(x).strip().lower()
+                            for x in st.session_state.employees["ID"].values
+                        )
 
                         for line in lines:
-                            delimiter = "\t" if "\t" in line else (";" if ";" in line else ",")
+                            delimiter = (
+                                "\t"
+                                if "\t" in line
+                                else (";" if ";" in line else ",")
+                            )
                             cols = [c.strip() for c in line.split(delimiter)]
                             if len(cols) >= 4:
-                                emp_id, name, role_title, cc = cols[0], cols[1], cols[2], cols[3]
+                                emp_id, name, role_title, cc = (
+                                    cols[0],
+                                    cols[1],
+                                    cols[2],
+                                    cols[3],
+                                )
                                 join_d = cols[4] if len(cols) > 4 else ""
                                 end_d = cols[5] if len(cols) > 5 else ""
                                 resign_d = cols[6] if len(cols) > 6 else "-"
                                 site_val = cols[7] if len(cols) > 7 else ""
-                                status_val = cols[8] if len(cols) > 8 else "Aktif"
+                                status_val = (
+                                    cols[8] if len(cols) > 8 else "Aktif"
+                                )
 
                                 if emp_id.lower() not in existing_ids:
                                     added_rows.append({
-                                        "ID": emp_id, "Nama Lengkap": name, "Posisi": role_title,
-                                        "Cost Center": cc, "Tanggal Bergabung": join_d, "Akhir Kontrak": end_d,
-                                        "Tanggal Resign": resign_d, "Site": site_val, "Status": status_val,
-                                        "Terakhir Diperbarui": str(date.today()),
+                                        "ID": emp_id,
+                                        "Nama Lengkap": name,
+                                        "Posisi": role_title,
+                                        "Cost Center": cc,
+                                        "Tanggal Bergabung": join_d,
+                                        "Akhir Kontrak": end_d,
+                                        "Tanggal Resign": resign_d,
+                                        "Site": site_val,
+                                        "Status": status_val,
+                                        "Terakhir Diperbarui": str(
+                                            date.today()
+                                        ),
                                     })
                                     existing_ids.add(emp_id.lower())
 
                         if added_rows:
-                            updated_df = pd.concat([st.session_state.employees, pd.DataFrame(added_rows)], ignore_index=True)
+                            updated_df = pd.concat(
+                                [
+                                    st.session_state.employees,
+                                    pd.DataFrame(added_rows),
+                                ],
+                                ignore_index=True,
+                            )
                             save_data(updated_df)
-                            st.success(f"Berhasil menambahkan {len(added_rows)} data baru!")
+                            st.success(
+                                f"Berhasil menambahkan {len(added_rows)} data"
+                                " baru!"
+                            )
                             st.rerun()
 
         # 3. KUNCI & HAPUS DATA SNAPSHOT BULANAN
-        with st.sidebar.expander("📸 Freeze / Snapshot Bulanan", expanded=False):
+        with st.sidebar.expander(
+            "📸 Freeze / Snapshot Bulanan", expanded=False
+        ):
             st.subheader("🔒 Simpan Snapshot Baru")
-            selected_periode = st.date_input("Pilih Bulan Periode", value=date.today()).strftime("%Y-%m")
+            selected_periode = st.date_input(
+                "Pilih Bulan Periode", value=date.today()
+            ).strftime("%Y-%m")
 
             if st.button(f"🔒 Kunci Data {selected_periode}"):
                 try:
                     df_curr = st.session_state.employees.copy()
-                    df_active = df_curr[df_curr["Status"] == "Aktif"].copy() if "Status" in df_curr.columns else df_curr.copy()
+                    df_active = (
+                        df_curr[df_curr["Status"] == "Aktif"].copy()
+                        if "Status" in df_curr.columns
+                        else df_curr.copy()
+                    )
                     df_active["Periode"] = selected_periode
                     df_active["Tanggal Snapshot"] = str(date.today())
 
                     cols_order = [
-                        "Periode", "ID", "Nama Lengkap", "Posisi", "Cost Center",
-                        "Tanggal Bergabung", "Akhir Kontrak", "Tanggal Resign",
-                        "Site", "Status", "Terakhir Diperbarui", "Tanggal Snapshot"
+                        "Periode",
+                        "ID",
+                        "Nama Lengkap",
+                        "Posisi",
+                        "Cost Center",
+                        "Tanggal Bergabung",
+                        "Akhir Kontrak",
+                        "Tanggal Resign",
+                        "Site",
+                        "Status",
+                        "Terakhir Diperbarui",
+                        "Tanggal Snapshot",
                     ]
 
                     df_old_snap = load_snapshot_data()
                     if not df_old_snap.empty:
                         if "Periode" in df_old_snap.columns:
-                            df_old_snap = df_old_snap[df_old_snap["Periode"] != selected_periode]
-                        df_new_snap = pd.concat([df_old_snap, df_active[cols_order]])
+                            df_old_snap = df_old_snap[
+                                df_old_snap["Periode"] != selected_periode
+                            ]
+                        df_new_snap = pd.concat(
+                            [df_old_snap, df_active[cols_order]]
+                        )
                     else:
                         df_new_snap = df_active[cols_order]
 
-                    conn.update(worksheet="Snapshot_Bulanan", data=df_new_snap)
-                    st.success(f"✅ Rekap {selected_periode} berhasil disimpan!")
+                    conn.update(
+                        worksheet="Snapshot_Bulanan", data=df_new_snap
+                    )
+                    st.success(
+                        f"✅ Rekap {selected_periode} berhasil disimpan!"
+                    )
                     st.rerun()
                 except Exception as e:
                     st.error(f"Gagal melakukan snapshot: {e}")
@@ -504,14 +669,25 @@ if menu_pilihan == "👥 Master Data Karyawan":
             st.subheader("🗑️ Hapus Snapshot Periode")
             df_snap_exist = load_snapshot_data()
             if not df_snap_exist.empty and "Periode" in df_snap_exist.columns:
-                list_snap_periods = sorted(df_snap_exist["Periode"].unique(), reverse=True)
-                period_to_delete = st.selectbox("Pilih Periode yang Ingin Dihapus:", list_snap_periods)
+                list_snap_periods = sorted(
+                    df_snap_exist["Periode"].unique(), reverse=True
+                )
+                period_to_delete = st.selectbox(
+                    "Pilih Periode yang Ingin Dihapus:", list_snap_periods
+                )
 
                 if st.button(f"🗑️ Hapus Snapshot {period_to_delete}"):
                     try:
-                        df_snap_filtered = df_snap_exist[df_snap_exist["Periode"] != period_to_delete]
-                        conn.update(worksheet="Snapshot_Bulanan", data=df_snap_filtered)
-                        st.success(f"✅ Snapshot periode {period_to_delete} berhasil dihapus!")
+                        df_snap_filtered = df_snap_exist[
+                            df_snap_exist["Periode"] != period_to_delete
+                        ]
+                        conn.update(
+                            worksheet="Snapshot_Bulanan", data=df_snap_filtered
+                        )
+                        st.success(
+                            f"✅ Snapshot periode {period_to_delete} berhasil"
+                            " dihapus!"
+                        )
                         st.rerun()
                     except Exception as e:
                         st.error(f"Gagal menghapus snapshot: {e}")
@@ -519,10 +695,24 @@ if menu_pilihan == "👥 Master Data Karyawan":
         # Ekspor Database
         st.sidebar.markdown("---")
         st.sidebar.subheader("📤 Ekspor Database")
-        csv_data = st.session_state.employees.to_csv(index=False).encode("utf-8-sig")
-        st.sidebar.download_button(label="📄 Ekspor CSV", data=csv_data, file_name="ekspor_database_karyawan.csv", mime="text/csv", use_container_width=True)
+        csv_data = st.session_state.employees.to_csv(index=False).encode(
+            "utf-8-sig"
+        )
+        st.sidebar.download_button(
+            label="📄 Ekspor CSV",
+            data=csv_data,
+            file_name="ekspor_database_karyawan.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
         excel_data = generate_excel_formatted(st.session_state.employees)
-        st.sidebar.download_button(label="📊 Ekspor Excel Formatted (.xlsx)", data=excel_data, file_name=f"Rekap_Karyawan_{date.today().strftime('%Y%m%d')}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+        st.sidebar.download_button(
+            label="📊 Ekspor Excel Formatted (.xlsx)",
+            data=excel_data,
+            file_name=f"Rekap_Karyawan_{date.today().strftime('%Y%m%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+        )
 
     # --- HALAMAN UTAMA MASTER ---
     if is_admin:
@@ -531,32 +721,78 @@ if menu_pilihan == "👥 Master Data Karyawan":
         st.info("👁️ **Mode Akses:** Umum / Guest (View Only)")
 
     # --- DASHBOARD ANALYTICS ---
-    with st.expander("📊 **Dashboard Analytics & Visualisasi Data**", expanded=True):
+    with st.expander(
+        "📊 **Dashboard Analytics & Visualisasi Data**", expanded=True
+    ):
         if not st.session_state.employees.empty:
             df_ana = st.session_state.employees.copy()
-            tab_overview, tab_trend, tab_cost = st.tabs(["📈 Ringkasan & Status", "🗓️ Tren Snapshot Bulanan", "💳 Sebaran Cost Center & Site"])
+            tab_overview, tab_trend, tab_cost = st.tabs([
+                "📈 Ringkasan & Status",
+                "🗓️ Tren Snapshot Bulanan",
+                "💳 Sebaran Cost Center & Site",
+            ])
 
             with tab_overview:
                 c1, c2 = st.columns(2)
                 with c1:
                     if "Status" in df_ana.columns:
-                        fig_status = px.pie(df_ana, names="Status", title="Komposisi Status Karyawan", hole=0.4, color_discrete_sequence=px.colors.qualitative.Set2)
-                        fig_status.update_traces(textposition="inside", textinfo="percent+label")
+                        fig_status = px.pie(
+                            df_ana,
+                            names="Status",
+                            title="Komposisi Status Karyawan",
+                            hole=0.4,
+                            color_discrete_sequence=px.colors.qualitative.Set2,
+                        )
+                        fig_status.update_traces(
+                            textposition="inside", textinfo="percent+label"
+                        )
                         st.plotly_chart(fig_status, use_container_width=True)
                 with c2:
                     if "Posisi" in df_ana.columns:
-                        top_roles = df_ana["Posisi"].value_counts().head(10).reset_index()
+                        top_roles = (
+                            df_ana["Posisi"]
+                            .value_counts()
+                            .head(10)
+                            .reset_index()
+                        )
                         top_roles.columns = ["Posisi", "Jumlah"]
-                        fig_role = px.bar(top_roles, x="Jumlah", y="Posisi", orientation="h", title="Top 10 Posisi Terbanyak", color="Jumlah", color_continuous_scale="Blues")
-                        fig_role.update_layout(yaxis={"categoryorder": "total ascending"})
+                        fig_role = px.bar(
+                            top_roles,
+                            x="Jumlah",
+                            y="Posisi",
+                            orientation="h",
+                            title="Top 10 Posisi Terbanyak",
+                            color="Jumlah",
+                            color_continuous_scale="Blues",
+                        )
+                        fig_role.update_layout(
+                            yaxis={"categoryorder": "total ascending"}
+                        )
                         st.plotly_chart(fig_role, use_container_width=True)
 
             with tab_trend:
                 df_snap_hist = load_snapshot_data()
                 if not df_snap_hist.empty and "Periode" in df_snap_hist.columns:
-                    trend_summary = df_snap_hist.groupby("Periode")["ID"].count().reset_index(name="Karyawan Aktif").sort_values("Periode")
-                    fig_trend = px.line(trend_summary, x="Periode", y="Karyawan Aktif", markers=True, title="Pertumbuhan Jumlah Karyawan Aktif per Periode Snapshot", line_shape="spline")
-                    fig_trend.update_traces(line_color="#1F4E79", line_width=3, marker_size=8)
+                    trend_summary = (
+                        df_snap_hist.groupby("Periode")["ID"]
+                        .count()
+                        .reset_index(name="Karyawan Aktif")
+                        .sort_values("Periode")
+                    )
+                    fig_trend = px.line(
+                        trend_summary,
+                        x="Periode",
+                        y="Karyawan Aktif",
+                        markers=True,
+                        title=(
+                            "Pertumbuhan Jumlah Karyawan Aktif per Periode"
+                            " Snapshot"
+                        ),
+                        line_shape="spline",
+                    )
+                    fig_trend.update_traces(
+                        line_color="#1F4E79", line_width=3, marker_size=8
+                    )
                     st.plotly_chart(fig_trend, use_container_width=True)
                 else:
                     st.info("Belum ada data snapshot historis.")
@@ -566,21 +802,67 @@ if menu_pilihan == "👥 Master Data Karyawan":
                 with c3:
                     if "Cost Center" in df_ana.columns:
                         df_cc_clean = df_ana.copy()
-                        df_cc_clean["Cost Center Clean"] = df_cc_clean["Cost Center"].astype(str).str.strip().str.title().replace("", "Belum Diisi")
-                        df_cc_clean["Cost Center Clean"] = df_cc_clean["Cost Center Clean"].replace({"Vinfast": "VinFast", "Cj Food": "CJ Food", "Fks": "FKS", "Keva & Jotun": "Keva & Jotun", "Jotun, Keva": "Keva & Jotun"})
-                        cc_counts = df_cc_clean["Cost Center Clean"].value_counts().reset_index()
+                        df_cc_clean["Cost Center Clean"] = (
+                            df_cc_clean["Cost Center"]
+                            .astype(str)
+                            .str.strip()
+                            .str.title()
+                            .replace("", "Belum Diisi")
+                        )
+                        df_cc_clean["Cost Center Clean"] = df_cc_clean[
+                            "Cost Center Clean"
+                        ].replace({
+                            "Vinfast": "VinFast",
+                            "Cj Food": "CJ Food",
+                            "Fks": "FKS",
+                            "Keva & Jotun": "Keva & Jotun",
+                            "Jotun, Keva": "Keva & Jotun",
+                        })
+                        cc_counts = (
+                            df_cc_clean["Cost Center Clean"]
+                            .value_counts()
+                            .reset_index()
+                        )
                         cc_counts.columns = ["Cost Center", "Jumlah"]
-                        fig_cc = px.bar(cc_counts, x="Jumlah", y="Cost Center", orientation="h", title="Jumlah Karyawan per Cost Center", color="Jumlah", color_continuous_scale="Viridis", text="Jumlah")
-                        fig_cc.update_layout(yaxis={"categoryorder": "total ascending"}, height=max(450, len(cc_counts) * 25))
+                        fig_cc = px.bar(
+                            cc_counts,
+                            x="Jumlah",
+                            y="Cost Center",
+                            orientation="h",
+                            title="Jumlah Karyawan per Cost Center",
+                            color="Jumlah",
+                            color_continuous_scale="Viridis",
+                            text="Jumlah",
+                        )
+                        fig_cc.update_layout(
+                            yaxis={"categoryorder": "total ascending"},
+                            height=max(450, len(cc_counts) * 25),
+                        )
                         fig_cc.update_traces(textposition="outside")
                         st.plotly_chart(fig_cc, use_container_width=True)
                 with c4:
                     if "Site" in df_ana.columns:
                         df_site_clean = df_ana.copy()
-                        df_site_clean["Site Clean"] = df_site_clean["Site"].astype(str).str.strip().str.upper().replace("", "BELUM DIISI")
-                        site_counts = df_site_clean["Site Clean"].value_counts().reset_index()
+                        df_site_clean["Site Clean"] = (
+                            df_site_clean["Site"]
+                            .astype(str)
+                            .str.strip()
+                            .str.upper()
+                            .replace("", "BELUM DIISI")
+                        )
+                        site_counts = (
+                            df_site_clean["Site Clean"]
+                            .value_counts()
+                            .reset_index()
+                        )
                         site_counts.columns = ["Site", "Jumlah"]
-                        fig_site = px.pie(site_counts, names="Site", values="Jumlah", title="Distribusi Lokasi Kerja (Site)", hole=0.3)
+                        fig_site = px.pie(
+                            site_counts,
+                            names="Site",
+                            values="Jumlah",
+                            title="Distribusi Lokasi Kerja (Site)",
+                            hole=0.3,
+                        )
                         st.plotly_chart(fig_site, use_container_width=True)
 
     st.divider()
@@ -588,22 +870,41 @@ if menu_pilihan == "👥 Master Data Karyawan":
     # --- FITUR PENCARIAN & FILTER MASTER ---
     col_mode, col_cat, col_src = st.columns([1.5, 1.5, 3])
     with col_mode:
-        view_mode = st.selectbox("Tampilkan Data:", ["Master Real-time", "Rekap Snapshot Bulanan"])
+        view_mode = st.selectbox(
+            "Tampilkan Data:",
+            ["Master Real-time", "Rekap Snapshot Bulanan"],
+        )
 
     df_display = pd.DataFrame()
     if view_mode == "Rekap Snapshot Bulanan":
         df_snap_all = load_snapshot_data()
         if not df_snap_all.empty and "Periode" in df_snap_all.columns:
-            list_periode = sorted(df_snap_all["Periode"].unique(), reverse=True)
-            selected_view_period = st.selectbox("Pilih Periode Rekap:", list_periode)
-            df_display = df_snap_all[df_snap_all["Periode"] == selected_view_period].copy()
+            list_periode = sorted(
+                df_snap_all["Periode"].unique(), reverse=True
+            )
+            selected_view_period = st.selectbox(
+                "Pilih Periode Rekap:", list_periode
+            )
+            df_display = df_snap_all[
+                df_snap_all["Periode"] == selected_view_period
+            ].copy()
         else:
             st.warning("Belum ada data snapshot yang disimpan.")
     else:
         df_display = st.session_state.employees.copy()
 
     with col_cat:
-        search_category = st.selectbox("Cari Berdasarkan:", ["Semua Kolom", "Nama Lengkap", "Posisi", "Cost Center", "Site", "Status"])
+        search_category = st.selectbox(
+            "Cari Berdasarkan:",
+            [
+                "Semua Kolom",
+                "Nama Lengkap",
+                "Posisi",
+                "Cost Center",
+                "Site",
+                "Status",
+            ],
+        )
 
     with col_src:
         search_query = st.text_input("🔍 Masukkan kata kunci pencarian...", "")
@@ -611,22 +912,78 @@ if menu_pilihan == "👥 Master Data Karyawan":
     if search_query and not df_display.empty:
         query = search_query.strip().lower()
         if search_category == "Nama Lengkap":
-            df_display = df_display[df_display["Nama Lengkap"].astype(str).str.lower().str.contains(query, na=False)]
+            df_display = df_display[
+                df_display["Nama Lengkap"]
+                .astype(str)
+                .str.lower()
+                .str.contains(query, na=False)
+            ]
         elif search_category == "Posisi":
-            df_display = df_display[df_display["Posisi"].astype(str).str.lower().str.contains(query, na=False)]
+            df_display = df_display[
+                df_display["Posisi"]
+                .astype(str)
+                .str.lower()
+                .str.contains(query, na=False)
+            ]
         elif search_category == "Cost Center":
-            df_display = df_display[df_display["Cost Center"].astype(str).str.lower().str.contains(query, na=False)]
+            df_display = df_display[
+                df_display["Cost Center"]
+                .astype(str)
+                .str.lower()
+                .str.contains(query, na=False)
+            ]
         elif search_category == "Site":
-            df_display = df_display[df_display["Site"].astype(str).str.lower().str.contains(query, na=False)]
+            df_display = df_display[
+                df_display["Site"]
+                .astype(str)
+                .str.lower()
+                .str.contains(query, na=False)
+            ]
         elif search_category == "Status":
-            df_display = df_display[df_display["Status"].astype(str).str.lower().str.contains(query, na=False)]
+            df_display = df_display[
+                df_display["Status"]
+                .astype(str)
+                .str.lower()
+                .str.contains(query, na=False)
+            ]
         else:
-            mask_name = df_display["Nama Lengkap"].astype(str).str.lower().str.contains(query, na=False)
-            mask_role = df_display["Posisi"].astype(str).str.lower().str.contains(query, na=False) if "Posisi" in df_display.columns else False
-            mask_cc = df_display["Cost Center"].astype(str).str.lower().str.contains(query, na=False)
-            mask_site = df_display["Site"].astype(str).str.lower().str.contains(query, na=False)
-            mask_stat = df_display["Status"].astype(str).str.lower().str.contains(query, na=False) if "Status" in df_display.columns else False
-            df_display = df_display[mask_name | mask_role | mask_cc | mask_site | mask_stat]
+            mask_name = (
+                df_display["Nama Lengkap"]
+                .astype(str)
+                .str.lower()
+                .str.contains(query, na=False)
+            )
+            mask_role = (
+                df_display["Posisi"]
+                .astype(str)
+                .str.lower()
+                .str.contains(query, na=False)
+                if "Posisi" in df_display.columns
+                else False
+            )
+            mask_cc = (
+                df_display["Cost Center"]
+                .astype(str)
+                .str.lower()
+                .str.contains(query, na=False)
+            )
+            mask_site = (
+                df_display["Site"]
+                .astype(str)
+                .str.lower()
+                .str.contains(query, na=False)
+            )
+            mask_stat = (
+                df_display["Status"]
+                .astype(str)
+                .str.lower()
+                .str.contains(query, na=False)
+                if "Status" in df_display.columns
+                else False
+            )
+            df_display = df_display[
+                mask_name | mask_role | mask_cc | mask_site | mask_stat
+            ]
 
     # Header Tabel & Tombol Ekspor
     col_tb_title, col_pdf_btn = st.columns([3, 1])
@@ -635,7 +992,15 @@ if menu_pilihan == "👥 Master Data Karyawan":
     with col_pdf_btn:
         if not df_display.empty:
             pdf_bytes = generate_pdf(df_display)
-            st.download_button(label="📄 Cetak / Download PDF", data=pdf_bytes, file_name=f"Laporan_Karyawan_{date.today().strftime('%Y%m%d')}.pdf", mime="application/pdf", use_container_width=True)
+            st.download_button(
+                label="📄 Cetak / Download PDF",
+                data=pdf_bytes,
+                file_name=(
+                    f"Laporan_Karyawan_{date.today().strftime('%Y%m%d')}.pdf"
+                ),
+                mime="application/pdf",
+                use_container_width=True,
+            )
 
     if df_display.empty:
         st.warning("Tidak ada data karyawan yang cocok dengan pencarian.")
@@ -643,28 +1008,55 @@ if menu_pilihan == "👥 Master Data Karyawan":
         st.dataframe(df_display, use_container_width=True)
 
     # Edit Data
-    if is_admin and view_mode == "Master Real-time" and not st.session_state.employees.empty:
+    if (
+        is_admin
+        and view_mode == "Master Real-time"
+        and not st.session_state.employees.empty
+    ):
         st.divider()
         st.subheader("🛠️ Kelola / Edit / Ubah Status Data Karyawan")
-        selected_id = st.selectbox("Pilih ID Karyawan untuk Diubah / Dihapus:", options=["-- Pilih ID --"] + list(st.session_state.employees["ID"]))
+        selected_id = st.selectbox(
+            "Pilih ID Karyawan untuk Diubah / Dihapus:",
+            options=["-- Pilih ID --"] + list(st.session_state.employees["ID"]),
+        )
 
         if selected_id != "-- Pilih ID --":
-            emp_idx = st.session_state.employees[st.session_state.employees["ID"] == selected_id].index[0]
+            emp_idx = st.session_state.employees[
+                st.session_state.employees["ID"] == selected_id
+            ].index[0]
             row = st.session_state.employees.loc[emp_idx]
 
             with st.form("edit_form"):
-                st.write(f"Editing: **{row['Nama Lengkap']}** (ID: `{row['ID']}`)")
+                st.write(
+                    f"Editing: **{row['Nama Lengkap']}** (ID: `{row['ID']}`)"
+                )
                 e_name = st.text_input("Nama Lengkap", value=row["Nama Lengkap"])
                 e_role = st.text_input("Posisi", value=row.get("Posisi", ""))
                 e_cc = st.text_input("Cost Center", value=row["Cost Center"])
-                e_join = st.text_input("Tanggal Bergabung (YYYY-MM-DD)", value=row["Tanggal Bergabung"])
-                e_end = st.text_input("Akhir Kontrak (YYYY-MM-DD)", value=row["Akhir Kontrak"])
-                e_site = st.text_input("Site / Lokasi Kerja", value=row.get("Site", ""))
+                e_join = st.text_input(
+                    "Tanggal Bergabung (YYYY-MM-DD)",
+                    value=row["Tanggal Bergabung"],
+                )
+                e_end = st.text_input(
+                    "Akhir Kontrak (YYYY-MM-DD)", value=row["Akhir Kontrak"]
+                )
+                e_site = st.text_input(
+                    "Site / Lokasi Kerja", value=row.get("Site", "")
+                )
                 current_status = row.get("Status", "Aktif")
                 status_opts = ["Aktif", "Resign", "PKWT"]
-                idx_stat = status_opts.index(current_status) if current_status in status_opts else 0
-                e_status = st.selectbox("Status Karyawan", options=status_opts, index=idx_stat)
-                e_resign = st.text_input("Tanggal Resign (YYYY-MM-DD)", value=row.get("Tanggal Resign", "-"))
+                idx_stat = (
+                    status_opts.index(current_status)
+                    if current_status in status_opts
+                    else 0
+                )
+                e_status = st.selectbox(
+                    "Status Karyawan", options=status_opts, index=idx_stat
+                )
+                e_resign = st.text_input(
+                    "Tanggal Resign (YYYY-MM-DD)",
+                    value=row.get("Tanggal Resign", "-"),
+                )
 
                 col_save, col_del = st.columns(2)
                 with col_save:
@@ -673,16 +1065,38 @@ if menu_pilihan == "👥 Master Data Karyawan":
                     btn_del = st.form_submit_button("🗑️ Hapus Karyawan")
 
                 if btn_save:
-                    st.session_state.employees.loc[emp_idx, [
-                        "Nama Lengkap", "Posisi", "Cost Center", "Tanggal Bergabung",
-                        "Akhir Kontrak", "Tanggal Resign", "Site", "Status", "Terakhir Diperbarui"
-                    ]] = [e_name, e_role, e_cc, e_join, e_end, e_resign, e_site, e_status, str(date.today())]
+                    st.session_state.employees.loc[
+                        emp_idx,
+                        [
+                            "Nama Lengkap",
+                            "Posisi",
+                            "Cost Center",
+                            "Tanggal Bergabung",
+                            "Akhir Kontrak",
+                            "Tanggal Resign",
+                            "Site",
+                            "Status",
+                            "Terakhir Diperbarui",
+                        ],
+                    ] = [
+                        e_name,
+                        e_role,
+                        e_cc,
+                        e_join,
+                        e_end,
+                        e_resign,
+                        e_site,
+                        e_status,
+                        str(date.today()),
+                    ]
                     save_data(st.session_state.employees)
                     st.success("Data berhasil diperbarui!")
                     st.rerun()
 
                 if btn_del:
-                    updated_df = st.session_state.employees.drop(emp_idx).reset_index(drop=True)
+                    updated_df = st.session_state.employees.drop(
+                        emp_idx
+                    ).reset_index(drop=True)
                     save_data(updated_df)
                     st.success("Data karyawan berhasil dihapus!")
                     st.rerun()
@@ -694,7 +1108,10 @@ if menu_pilihan == "👥 Master Data Karyawan":
 if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
 
     st.title("⏱️ Rekap & Import Absensi Karyawan Site")
-    st.caption("Upload file Excel Timesheet untuk memperbarui rekap absensi di Google Sheets.")
+    st.caption(
+        "Upload file Excel Timesheet untuk memperbarui rekap absensi di Google"
+        " Sheets."
+    )
 
     # 1. FUNGSI LOAD DATA ABSENSI
     def load_absensi_data():
@@ -702,50 +1119,88 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             df_absen = conn.read(worksheet="Absensi_Karyawan", ttl=0)
             if df_absen is not None and not df_absen.empty:
                 df_absen["ID"] = df_absen["ID"].astype(str)
-                df_absen["Tanggal"] = pd.to_datetime(df_absen["Tanggal"]).dt.strftime("%Y-%m-%d")
+                df_absen["Tanggal"] = pd.to_datetime(
+                    df_absen["Tanggal"]
+                ).dt.strftime("%Y-%m-%d")
                 if "Status" not in df_absen.columns:
                     df_absen["Status"] = "Hadir"
             return df_absen
         except Exception:
             return pd.DataFrame(
-                columns=["ID", "Nama Lengkap", "Site", "Job Title", "Tanggal", "In", "Out", "Shift", "Status"]
+                columns=[
+                    "ID",
+                    "Nama Lengkap",
+                    "Site",
+                    "Job Title",
+                    "Tanggal",
+                    "In",
+                    "Out",
+                    "Shift",
+                    "Status",
+                ]
             )
 
     # Refresh / Init Session State
-    if "df_absensi" not in st.session_state or st.sidebar.button("🔄 Refresh Data Absensi"):
+    if (
+        "df_absensi" not in st.session_state
+        or st.sidebar.button("🔄 Refresh Data Absensi")
+    ):
         st.session_state.df_absensi = load_absensi_data()
 
     # 2. FITUR UPLOAD EXCEL (Hanya Admin)
     if is_admin:
-        with st.expander("📥 **Upload File Excel Timesheet**", expanded=False):
-            st.info("Pastikan file Excel memiliki 9 kolom: ID, Nama Lengkap, Site, Job Title, Tanggal, In, Out, Shift (atau Sta), Status")
-            uploaded_file = st.file_uploader("Pilih File Excel:", type=["xlsx", "xls"])
+        with st.expander(
+            "📥 **Upload File Excel Timesheet**", expanded=False
+        ):
+            st.info(
+                "Pastikan file Excel memiliki 9 kolom: ID, Nama Lengkap, Site,"
+                " Job Title, Tanggal, In, Out, Shift (atau Sta), Status"
+            )
+            uploaded_file = st.file_uploader(
+                "Pilih File Excel:", type=["xlsx", "xls"]
+            )
 
             if uploaded_file is not None:
                 if st.button("🚀 Simpan ke Database Google Sheets"):
                     try:
                         df_upload = pd.read_excel(uploaded_file)
-                        df_upload.columns = [c.strip() for c in df_upload.columns]
+                        df_upload.columns = [
+                            c.strip() for c in df_upload.columns
+                        ]
 
                         # Standardisasi nama kolom
-                        df_upload.rename(columns={"Sta": "Shift", "Ket": "Status"}, inplace=True)
+                        df_upload.rename(
+                            columns={"Sta": "Shift", "Ket": "Status"},
+                            inplace=True,
+                        )
                         if "Status" not in df_upload.columns:
                             df_upload["Status"] = "Hadir"
 
                         # Format ulang tanggal & ID
-                        df_upload["Tanggal"] = pd.to_datetime(df_upload["Tanggal"]).dt.strftime("%Y-%m-%d")
+                        df_upload["Tanggal"] = pd.to_datetime(
+                            df_upload["Tanggal"]
+                        ).dt.strftime("%Y-%m-%d")
                         df_upload["ID"] = df_upload["ID"].astype(str)
 
                         # Tarik data absensi lama & gabungkan
                         df_lama = load_absensi_data()
-                        updated_absensi = pd.concat([df_lama, df_upload], ignore_index=True)
-                        updated_absensi = updated_absensi.drop_duplicates(subset=["ID", "Tanggal"], keep="last")
+                        updated_absensi = pd.concat(
+                            [df_lama, df_upload], ignore_index=True
+                        )
+                        updated_absensi = updated_absensi.drop_duplicates(
+                            subset=["ID", "Tanggal"], keep="last"
+                        )
 
                         # Simpan ke Google Sheets
-                        conn.update(worksheet="Absensi_Karyawan", data=updated_absensi)
+                        conn.update(
+                            worksheet="Absensi_Karyawan", data=updated_absensi
+                        )
                         st.session_state.df_absensi = updated_absensi
 
-                        st.success(f"✅ Berhasil menyimpan {len(df_upload)} baris data absensi ke Google Sheets!")
+                        st.success(
+                            f"✅ Berhasil menyimpan {len(df_upload)} baris data"
+                            " absensi ke Google Sheets!"
+                        )
                         st.rerun()
                     except Exception as e:
                         st.error(f"Gagal memproses file Excel: {e}")
@@ -754,9 +1209,12 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
     df_absen = st.session_state.df_absensi
 
     if not df_absen.empty:
-        with st.expander("📊 **Dashboard Analytics & Visualisasi Data Absensi**", expanded=True):
+        with st.expander(
+            "📊 **Dashboard Analytics & Visualisasi Data Absensi**",
+            expanded=True,
+        ):
             df_analytics = df_absen.copy()
-            
+
             # --- LOGIKA PEMBERSIHAN STATUS (ISTILAH: TIDAK HADIR) ---
             def clean_status_val(row):
                 status_raw = str(row.get("Status", "")).strip().lower()
@@ -776,8 +1234,20 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                     return "Late"
 
                 # 2. Cek ketersediaan jam In/Out
-                in_empty = pd.isna(row.get("In")) or in_val in ["none", "nan", "", "-", "null"]
-                out_empty = pd.isna(row.get("Out")) or out_val in ["none", "nan", "", "-", "null"]
+                in_empty = pd.isna(row.get("In")) or in_val in [
+                    "none",
+                    "nan",
+                    "",
+                    "-",
+                    "null",
+                ]
+                out_empty = pd.isna(row.get("Out")) or out_val in [
+                    "none",
+                    "nan",
+                    "",
+                    "-",
+                    "null",
+                ]
 
                 # HANYA JIKA KEDUANYA KOSONG maka dianggap Tidak Hadir
                 if in_empty and out_empty:
@@ -786,39 +1256,73 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                 # JIKA SALAH SATU ATAU KEDUANYA TERISI -> Dianggap Hadir
                 return "Hadir"
 
-            df_analytics["Status_Clean"] = df_analytics.apply(clean_status_val, axis=1)
-            
+            df_analytics["Status_Clean"] = df_analytics.apply(
+                clean_status_val, axis=1
+            )
+
             # --- FORMAT TANGGAL SEBAGAI STRING (YYYY-MM-DD) ---
-            df_analytics["Tanggal_Clean"] = pd.to_datetime(df_analytics["Tanggal"]).dt.strftime("%Y-%m-%d")
-            
+            df_analytics["Tanggal_Clean"] = pd.to_datetime(
+                df_analytics["Tanggal"]
+            ).dt.strftime("%Y-%m-%d")
+
             total_records = len(df_analytics)
-            hadir_count = len(df_analytics[df_analytics["Status_Clean"] == "Hadir"])
-            late_count = len(df_analytics[df_analytics["Status_Clean"] == "Late"])
-            tidak_hadir_count = len(df_analytics[df_analytics["Status_Clean"].isin(["Sakit", "Cuti", "Izin", "Tidak Hadir"])])
+            hadir_count = len(
+                df_analytics[df_analytics["Status_Clean"] == "Hadir"]
+            )
+            late_count = len(
+                df_analytics[df_analytics["Status_Clean"] == "Late"]
+            )
+            tidak_hadir_count = len(
+                df_analytics[
+                    df_analytics["Status_Clean"].isin(
+                        ["Sakit", "Cuti", "Izin", "Tidak Hadir"]
+                    )
+                ]
+            )
 
             # Metric Cards
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Total Record Absensi", f"{total_records:,}")
-            m2.metric("Total Hadir Normal", f"{hadir_count:,}", delta=f"{round(hadir_count/total_records*100, 1) if total_records else 0}%")
-            m3.metric("Terlambat (Late)", f"{late_count:,}", delta=f"-{late_count}" if late_count > 0 else "0", delta_color="inverse")
-            m4.metric("Tidak Hadir (Sakit/Cuti/Izin/Tidak Hadir)", f"{tidak_hadir_count:,}")
+            m2.metric(
+                "Total Hadir Normal",
+                f"{hadir_count:,}",
+                delta=(
+                    f"{round(hadir_count/total_records*100, 1) if total_records else 0}%"
+                ),
+            )
+            m3.metric(
+                "Terlambat (Late)",
+                f"{late_count:,}",
+                delta=f"-{late_count}" if late_count > 0 else "0",
+                delta_color="inverse",
+            )
+            m4.metric(
+                "Tidak Hadir (Sakit/Cuti/Izin/Tidak Hadir)",
+                f"{tidak_hadir_count:,}",
+            )
 
             st.markdown("---")
 
             # Chart Tabs
             tab_stat, tab_shift, tab_top_late = st.tabs([
-                "📊 Ringkasan Status", "⏱️ Sebaran Shift Work", "⚠️ Catatan Status Khusus"
+                "📊 Ringkasan Status",
+                "⏱️ Sebaran Shift Work",
+                "⚠️ Catatan Status Khusus",
             ])
 
             with tab_stat:
                 c1, c2 = st.columns(2)
                 with c1:
-                    status_counts = df_analytics["Status_Clean"].value_counts().reset_index()
+                    status_counts = (
+                        df_analytics["Status_Clean"]
+                        .value_counts()
+                        .reset_index()
+                    )
                     status_counts.columns = ["Status", "Jumlah"]
                     fig_status = px.pie(
-                        status_counts, 
-                        names="Status", 
-                        values="Jumlah", 
+                        status_counts,
+                        names="Status",
+                        values="Jumlah",
                         title="Komposisi Status Kehadiran Karyawan",
                         hole=0.4,
                         color_discrete_map={
@@ -827,18 +1331,26 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                             "Cuti": "#1F4E79",
                             "Izin": "#17BECF",
                             "Late": "#FC8D62",
-                            "Tidak Hadir": "#E78AC3"
-                        }
+                            "Tidak Hadir": "#E78AC3",
+                        },
                     )
-                    fig_status.update_traces(textposition="inside", textinfo="percent+label")
+                    fig_status.update_traces(
+                        textposition="inside", textinfo="percent+label"
+                    )
                     st.plotly_chart(fig_status, use_container_width=True)
-                
+
                 with c2:
-                    daily_trend = df_analytics.groupby(["Tanggal_Clean", "Status_Clean"])["ID"].count().reset_index(name="Total Scan")
+                    daily_trend = (
+                        df_analytics.groupby(
+                            ["Tanggal_Clean", "Status_Clean"]
+                        )["ID"]
+                        .count()
+                        .reset_index(name="Total Scan")
+                    )
                     fig_daily = px.bar(
-                        daily_trend, 
-                        x="Tanggal_Clean", 
-                        y="Total Scan", 
+                        daily_trend,
+                        x="Tanggal_Clean",
+                        y="Total Scan",
                         color="Status_Clean",
                         title="Volume Absensi Harian (Berdasarkan Status)",
                         text="Total Scan",
@@ -848,28 +1360,41 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                             "Cuti": "#2CA02C",
                             "Izin": "#17BECF",
                             "Late": "#FF7F0E",
-                            "Tidak Hadir": "#D62728"
-                        }
+                            "Tidak Hadir": "#D62728",
+                        },
                     )
-                    fig_daily.update_xaxes(type='category', title_text="Tanggal")
+                    fig_daily.update_xaxes(
+                        type="category", title_text="Tanggal"
+                    )
                     fig_daily.update_layout(legend_title_text="Status")
                     st.plotly_chart(fig_daily, use_container_width=True)
 
             with tab_shift:
-                if "Shift" in df_analytics.columns and "Tanggal_Clean" in df_analytics.columns:
+                if (
+                    "Shift" in df_analytics.columns
+                    and "Tanggal_Clean" in df_analytics.columns
+                ):
                     shift_df = df_analytics.copy()
-                    
+
                     # 1. Bersihkan format string shift
-                    shift_df["Shift_Clean"] = shift_df["Shift"].astype(str).str.replace(".0", "", regex=False).str.strip().str.upper()
-                    
+                    shift_df["Shift_Clean"] = (
+                        shift_df["Shift"]
+                        .astype(str)
+                        .str.replace(".0", "", regex=False)
+                        .str.strip()
+                        .str.upper()
+                    )
+
                     # 2. Filter khusus Shift 1, 2, 3, dan Middle (M)
                     target_shifts = ["1", "2", "3", "M"]
-                    shift_filtered = shift_df[shift_df["Shift_Clean"].isin(target_shifts)]
-                    
+                    shift_filtered = shift_df[
+                        shift_df["Shift_Clean"].isin(target_shifts)
+                    ]
+
                     if not shift_filtered.empty:
                         # 3. Hitung jumlah hari unik pada dataset sebagai pembagi
                         total_days = shift_df["Tanggal_Clean"].nunique()
-                        
+
                         # 4. Hitung Rata-Rata Karyawan per Hari per Shift
                         shift_avg = (
                             shift_filtered.groupby("Shift_Clean")["ID"]
@@ -878,86 +1403,140 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                             .round(1)
                             .reset_index(name="Rata_Rata_Karyawan")
                         )
-                        
+
                         # Urutkan batang secara logis: 1 -> 2 -> 3 -> M
                         shift_order = {"1": 1, "2": 2, "3": 3, "M": 4}
-                        shift_avg["Order"] = shift_avg["Shift_Clean"].map(shift_order)
+                        shift_avg["Order"] = shift_avg["Shift_Clean"].map(
+                            shift_order
+                        )
                         shift_avg = shift_avg.sort_values("Order")
-                        
+
                         # 5. Visualisasi Bar Chart Rata-Rata
                         fig_shift = px.bar(
                             shift_avg,
                             x="Shift_Clean",
                             y="Rata_Rata_Karyawan",
                             text="Rata_Rata_Karyawan",
-                            title=f"Rata-Rata Jumlah Karyawan per Hari (Total {total_days} Hari Data)",
+                            title=(
+                                "Rata-Rata Jumlah Karyawan per Hari (Total"
+                                f" {total_days} Hari Data)"
+                            ),
                             color="Rata_Rata_Karyawan",
                             color_continuous_scale="Viridis",
-                            labels={"Shift_Clean": "Shift Work", "Rata_Rata_Karyawan": "Rata-Rata Orang / Hari"}
+                            labels={
+                                "Shift_Clean": "Shift Work",
+                                "Rata_Rata_Karyawan": "Rata-Rata Orang / Hari",
+                            },
                         )
-                        fig_shift.update_xaxes(type='category')
-                        fig_shift.update_traces(textposition="outside", texttemplate='%{text} orang/hari')
+                        fig_shift.update_xaxes(type="category")
+                        fig_shift.update_traces(
+                            textposition="outside",
+                            texttemplate="%{text} orang/hari",
+                        )
                         st.plotly_chart(fig_shift, use_container_width=True)
                     else:
-                        st.info("Tidak ditemukan data untuk Shift 1, 2, 3, atau Middle (M).")
+                        st.info(
+                            "Tidak ditemukan data untuk Shift 1, 2, 3, atau"
+                            " Middle (M)."
+                        )
 
             with tab_top_late:
-                df_late_only = df_analytics[df_analytics["Status_Clean"].isin(["Late", "Terlambat", "Sakit", "Cuti", "Izin", "Tidak Hadir"])]
+                df_late_only = df_analytics[
+                    df_analytics["Status_Clean"].isin([
+                        "Late",
+                        "Terlambat",
+                        "Sakit",
+                        "Cuti",
+                        "Izin",
+                        "Tidak Hadir",
+                    ])
+                ]
                 if not df_late_only.empty:
-                    top_late = df_late_only.groupby(["Nama Lengkap", "Status_Clean"]).size().reset_index(name="Frekuensi")
+                    top_late = (
+                        df_late_only.groupby(["Nama Lengkap", "Status_Clean"])
+                        .size()
+                        .reset_index(name="Frekuensi")
+                    )
                     top_employees = (
                         top_late.groupby("Nama Lengkap")["Frekuensi"]
                         .sum()
                         .nlargest(10)
                         .index
                     )
-                    top_late = top_late[top_late["Nama Lengkap"].isin(top_employees)]
-                    
+                    top_late = top_late[
+                        top_late["Nama Lengkap"].isin(top_employees)
+                    ]
+
                     fig_top = px.bar(
                         top_late,
                         x="Frekuensi",
                         y="Nama Lengkap",
                         color="Status_Clean",
                         orientation="h",
-                        title="Top 10 Karyawan Catatan Khusus (Rincian per Status)",
+                        title=(
+                            "Top 10 Karyawan Catatan Khusus (Rincian per"
+                            " Status)"
+                        ),
                         text="Frekuensi",
                         color_discrete_map={
                             "Late": "#FF0000",
                             "Sakit": "#FFC000",
                             "Cuti": "#1F4E79",
                             "Izin": "#17BECF",
-                            "Tidak Hadir": "#8B0000"
-                        }
+                            "Tidak Hadir": "#8B0000",
+                        },
                     )
                     fig_top.update_layout(
                         yaxis={"categoryorder": "total ascending"},
-                        legend_title_text="Status Khusus"
+                        legend_title_text="Status Khusus",
                     )
                     st.plotly_chart(fig_top, use_container_width=True)
                 else:
-                    st.success("🎉 Tidak ditemukan catatan keterlambatan atau ketidakhadiran khusus pada data absensi saat ini.")
+                    st.success(
+                        "🎉 Tidak ditemukan catatan keterlambatan atau"
+                        " ketidakhadiran khusus pada data absensi saat ini."
+                    )
 
     # 4. TAMPILAN MATRIKS ABSENSI HORISONTAL (PIVOT)
     st.divider()
     st.subheader("📊 Timesheet Matrix")
 
     if df_absen.empty:
-        st.warning("Belum ada data absensi di Google Sheets. Silakan upload file Excel terlebih dahulu.")
+        st.warning(
+            "Belum ada data absensi di Google Sheets. Silakan upload file Excel"
+            " terlebih dahulu."
+        )
     else:
         # Filter berdasarkan Site
-        list_site = ["Semua Site"] + sorted(list(df_absen["Site"].astype(str).unique()))
+        list_site = ["Semua Site"] + sorted(
+            list(df_absen["Site"].astype(str).unique())
+        )
         selected_site = st.selectbox("Tampilkan Site:", list_site)
 
         if selected_site != "Semua Site":
             df_absen = df_absen[df_absen["Site"] == selected_site]
 
+        # --- DEDUPLIKASI: AMBIL SCAN AKTIF / TERAKHIR PER ID & TANGGAL ---
+        df_absen_clean = df_absen.sort_values(
+            by=["ID", "Tanggal", "In"], ascending=[True, True, False]
+        )
+        df_absen_clean = df_absen_clean.drop_duplicates(
+            subset=["ID", "Tanggal"], keep="first"
+        ).copy()
+
         # Proses Pivot Data
-        df_absen_copy = df_absen.copy()
-        df_absen_copy["Tgl_Format"] = pd.to_datetime(df_absen_copy["Tanggal"]).dt.strftime("%d-%b\n%a")
+        df_absen_clean["Tgl_Format"] = pd.to_datetime(
+            df_absen_clean["Tanggal"]
+        ).dt.strftime("%d-%b\n%a")
 
         # Format desimal shift (1.000000 -> 1)
         def clean_shift(val):
-            if pd.isna(val) or str(val).strip().lower() in ["none", "nan", "", "-"]:
+            if pd.isna(val) or str(val).strip().lower() in [
+                "none",
+                "nan",
+                "",
+                "-",
+            ]:
                 return "-"
             try:
                 val_float = float(val)
@@ -967,9 +1546,9 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             except ValueError:
                 return str(val)
 
-        df_absen_copy["Shift"] = df_absen_copy["Shift"].apply(clean_shift)
+        df_absen_clean["Shift"] = df_absen_clean["Shift"].apply(clean_shift)
 
-        df_melted = df_absen_copy.melt(
+        df_melted = df_absen_clean.melt(
             id_vars=["ID", "Nama Lengkap", "Site", "Job Title", "Tgl_Format"],
             value_vars=["In", "Out", "Shift", "Status"],
             var_name="SubHeader",
@@ -977,51 +1556,63 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
         )
 
         matrix_df = df_melted.pivot_table(
-            index=["ID", "Nama Lengkap", "Site", "Job Title"],
+            index=["ID", "Nama Lengkap"],
             columns=["Tgl_Format", "SubHeader"],
             values="Value",
             aggfunc="first",
         )
 
         # Urutkan sub-header secara tegas: In | Out | Shift | Status
-        matrix_df = matrix_df.reindex(columns=["In", "Out", "Shift", "Status"], level=1)
+        matrix_df = matrix_df.reindex(
+            columns=["In", "Out", "Shift", "Status"], level=1
+        )
 
         # Ubah semua nilai kosong / None / nan menjadi tanda strip (-)
         matrix_df = matrix_df.fillna("-")
         matrix_df = matrix_df.map(
-            lambda x: "-" if str(x).strip().lower() in ["none", "nan", ""] else x
+            lambda x: (
+                "-" if str(x).strip().lower() in ["none", "nan", ""] else x
+            )
         )
 
         # Fungsi Styling Spesifik Berdasarkan SubHeader
         def apply_matrix_styles(df):
             styles_df = pd.DataFrame("", index=df.index, columns=df.columns)
-            
+
             for col in df.columns:
                 sub_header = col[1]  # In / Out / Shift / Status
-                
+
                 # Kolom Status: Beri warna jika bernilai khusus / tidak hadir
                 if sub_header == "Status":
                     for idx in df.index:
                         val_str = str(df.loc[idx, col]).strip().lower()
                         if val_str in ["sakit", "cuti", "izin", "ijin"]:
-                            styles_df.loc[idx, col] = "background-color: #FFC000; color: black; font-weight: bold;"
+                            styles_df.loc[idx, col] = (
+                                "background-color: #FFC000; color: black;"
+                                " font-weight: bold;"
+                            )
                         elif val_str in ["late", "terlambat"]:
-                            styles_df.loc[idx, col] = "background-color: #FF0000; color: white; font-weight: bold;"
+                            styles_df.loc[idx, col] = (
+                                "background-color: #FF0000; color: white;"
+                                " font-weight: bold;"
+                            )
                         elif val_str in ["alpha", "mangkir", "tidak hadir"]:
-                            styles_df.loc[idx, col] = "background-color: #8B0000; color: white; font-weight: bold;"
-            
+                            styles_df.loc[idx, col] = (
+                                "background-color: #8B0000; color: white;"
+                                " font-weight: bold;"
+                            )
+
             return styles_df
 
         # Terapkan styling
-        styled_matrix = (
-            matrix_df.style.apply(apply_matrix_styles, axis=None)
-            .set_properties(
-                **{
-                    "text-align": "center",
-                    "font-size": "12px",
-                    "border": "1px solid #d3d3d3",
-                }
-            )
+        styled_matrix = matrix_df.style.apply(
+            apply_matrix_styles, axis=None
+        ).set_properties(
+            **{
+                "text-align": "center",
+                "font-size": "12px",
+                "border": "1px solid #d3d3d3",
+            }
         )
 
         st.dataframe(styled_matrix, use_container_width=True, height=500)
