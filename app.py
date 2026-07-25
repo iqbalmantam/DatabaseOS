@@ -757,21 +757,21 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
         with st.expander("📊 **Dashboard Analytics & Visualisasi Data Absensi**", expanded=True):
             df_analytics = df_absen.copy()
             
-            # --- LOGIKA KETAT DENGAN KOREKSI ATURAN BARU ---
+            # --- LOGIKA PEMBERSIHAN STATUS (ISTILAH: TIDAK HADIR) ---
             def clean_status_val(row):
                 status_raw = str(row.get("Status", "")).strip().lower()
                 in_val = str(row.get("In", "")).strip().lower()
                 out_val = str(row.get("Out", "")).strip().lower()
 
-                # 1. Keterangan khusus (Sakit/Cuti/Izin) tetap diakui sebagai status khusus
+                # 1. Keterangan khusus
                 if status_raw in ["sakit"]:
                     return "Sakit"
                 elif status_raw in ["cuti"]:
                     return "Cuti"
                 elif status_raw in ["izin", "ijin"]:
                     return "Izin"
-                elif status_raw in ["alpha", "mangkir"]:
-                    return "Alpha"
+                elif status_raw in ["alpha", "mangkir", "tidak hadir"]:
+                    return "Tidak Hadir"
                 elif status_raw in ["late", "terlambat"]:
                     return "Late"
 
@@ -779,11 +779,11 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                 in_empty = pd.isna(row.get("In")) or in_val in ["none", "nan", "", "-", "null"]
                 out_empty = pd.isna(row.get("Out")) or out_val in ["none", "nan", "", "-", "null"]
 
-                # HANYA JIKA KEDUANYA KOSONG maka dianggap Alpha (Tidak Hadir)
+                # HANYA JIKA KEDUANYA KOSONG maka dianggap Tidak Hadir
                 if in_empty and out_empty:
-                    return "Alpha"
+                    return "Tidak Hadir"
 
-                # JIKA SALAH SATU ATAU KEDUANYA TERISI (In ada / Out ada) -> Dianggap Hadir
+                # JIKA SALAH SATU ATAU KEDUANYA TERISI -> Dianggap Hadir
                 return "Hadir"
 
             df_analytics["Status_Clean"] = df_analytics.apply(clean_status_val, axis=1)
@@ -794,14 +794,14 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             total_records = len(df_analytics)
             hadir_count = len(df_analytics[df_analytics["Status_Clean"] == "Hadir"])
             late_count = len(df_analytics[df_analytics["Status_Clean"] == "Late"])
-            tidak_hadir_count = len(df_analytics[df_analytics["Status_Clean"].isin(["Sakit", "Cuti", "Izin", "Alpha"])])
+            tidak_hadir_count = len(df_analytics[df_analytics["Status_Clean"].isin(["Sakit", "Cuti", "Izin", "Tidak Hadir"])])
 
             # Metric Cards
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Total Record Absensi", f"{total_records:,}")
             m2.metric("Total Hadir Normal", f"{hadir_count:,}", delta=f"{round(hadir_count/total_records*100, 1) if total_records else 0}%")
             m3.metric("Terlambat (Late)", f"{late_count:,}", delta=f"-{late_count}" if late_count > 0 else "0", delta_color="inverse")
-            m4.metric("Tidak Hadir (Sakit/Cuti/Izin/Alpha)", f"{tidak_hadir_count:,}")
+            m4.metric("Tidak Hadir (Sakit/Cuti/Izin/Tidak Hadir)", f"{tidak_hadir_count:,}")
 
             st.markdown("---")
 
@@ -827,7 +827,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                             "Cuti": "#1F4E79",
                             "Izin": "#17BECF",
                             "Late": "#FC8D62",
-                            "Alpha": "#E78AC3"
+                            "Tidak Hadir": "#E78AC3"
                         }
                     )
                     fig_status.update_traces(textposition="inside", textinfo="percent+label")
@@ -848,7 +848,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                             "Cuti": "#2CA02C",
                             "Izin": "#17BECF",
                             "Late": "#FF7F0E",
-                            "Alpha": "#D62728"
+                            "Tidak Hadir": "#D62728"
                         }
                     )
                     fig_daily.update_xaxes(type='category', title_text="Tanggal")
@@ -876,7 +876,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                     st.plotly_chart(fig_shift, use_container_width=True)
 
             with tab_top_late:
-                df_late_only = df_analytics[df_analytics["Status_Clean"].isin(["Late", "Terlambat", "Sakit", "Cuti", "Izin", "Alpha"])]
+                df_late_only = df_analytics[df_analytics["Status_Clean"].isin(["Late", "Terlambat", "Sakit", "Cuti", "Izin", "Tidak Hadir"])]
                 if not df_late_only.empty:
                     top_late = df_late_only.groupby(["Nama Lengkap", "Status_Clean"]).size().reset_index(name="Frekuensi")
                     top_employees = (
@@ -900,7 +900,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                             "Sakit": "#FFC000",
                             "Cuti": "#1F4E79",
                             "Izin": "#17BECF",
-                            "Alpha": "#8B0000"
+                            "Tidak Hadir": "#8B0000"
                         }
                     )
                     fig_top.update_layout(
@@ -981,7 +981,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                             styles_df.loc[idx, col] = "background-color: #FFC000; color: black; font-weight: bold;"
                         elif val_str in ["late", "terlambat"]:
                             styles_df.loc[idx, col] = "background-color: #FF0000; color: white; font-weight: bold;"
-                        elif val_str in ["alpha", "mangkir"]:
+                        elif val_str in ["alpha", "mangkir", "tidak hadir"]:
                             styles_df.loc[idx, col] = "background-color: #8B0000; color: white; font-weight: bold;"
             
             return styles_df
