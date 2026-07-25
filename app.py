@@ -770,7 +770,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
         df_absen_copy = df_absen.copy()
         df_absen_copy["Tgl_Format"] = pd.to_datetime(df_absen_copy["Tanggal"]).dt.strftime("%d-%b\n%a")
 
-        # --- FIX 1: TANGANI FORMAT DESIMAL SHIFT (1.000000 -> 1) ---
+        # Format desimal shift (1.000000 -> 1)
         def clean_shift(val):
             if pd.isna(val) or str(val).strip().lower() in ["none", "nan", "", "-"]:
                 return "-"
@@ -784,13 +784,13 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
 
         df_absen_copy["Shift"] = df_absen_copy["Shift"].apply(clean_shift)
 
-        # Pembersihan kolom In, Out, dan Status dari nilai 'None' / 'nan'
+        # Pembersihan nilai 'None', 'nan', 'NaN' menjadi '-' untuk kolom In, Out, Status
         for col in ["In", "Out", "Status"]:
             if col in df_absen_copy.columns:
                 df_absen_copy[col] = (
                     df_absen_copy[col]
                     .astype(str)
-                    .replace(["None", "nan", "NaN", ""], "-")
+                    .replace(["None", "nan", "NaN", "none", "NONE", ""], "-")
                 )
 
         df_melted = df_absen_copy.melt(
@@ -810,23 +810,15 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
         # Urutkan sub-header secara tegas: In | Out | Shift | Status
         matrix_df = matrix_df.reindex(columns=["In", "Out", "Shift", "Status"], level=1)
 
-        # Fungsi Styling Spesifik Berdasarkan SubHeader Lengkap
+        # Fungsi Styling Spesifik Berdasarkan SubHeader
         def apply_matrix_styles(df):
-            # Buat DataFrame style kosong ukuran sama
             styles_df = pd.DataFrame("", index=df.index, columns=df.columns)
             
             for col in df.columns:
                 sub_header = col[1]  # In / Out / Shift / Status
                 
-                if sub_header == "Shift":
-                    # Warna Kuning untuk kolom Shift jika terisi
-                    for idx in df.index:
-                        val = str(df.loc[idx, col]).strip()
-                        if val not in ["-", "", "nan", "None"]:
-                            styles_df.loc[idx, col] = "background-color: #FFFF00; color: black; font-weight: bold;"
-                
-                elif sub_header == "Status":
-                    # Warna khusus untuk Keterangan Status
+                # Kolom Status: Beri warna jika bernilai khusus
+                if sub_header == "Status":
                     for idx in df.index:
                         val_str = str(df.loc[idx, col]).strip().lower()
                         if val_str in ["sakit", "cuti", "izin"]:
@@ -838,7 +830,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             
             return styles_df
 
-        # Terapkan styling secara aman
+        # Terapkan styling
         styled_matrix = (
             matrix_df.style.apply(apply_matrix_styles, axis=None)
             .set_properties(
