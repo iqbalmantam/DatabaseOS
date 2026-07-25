@@ -850,23 +850,41 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                     st.plotly_chart(fig_shift, use_container_width=True)
 
             with tab_top_late:
-                df_late_only = df_analytics[df_analytics["Status_Clean"].isin(["Late", "Terlambat", "Sakit", "Cuti", "Alpha"])]
+                df_late_only = df_analytics[df_analytics["Status_Clean"].isin(["Late", "Terlambat", "Sakit", "Cuti", "Izin", "Alpha"])]
                 if not df_late_only.empty:
-                    top_late = df_late_only["Nama Lengkap"].value_counts().head(10).reset_index()
-                    top_late.columns = ["Nama Karyawan", "Frekuensi"]
+                    # Grouping berdasarkan Nama dan Status untuk melihat rincian per kategori
+                    top_late = df_late_only.groupby(["Nama Lengkap", "Status_Clean"]).size().reset_index(name="Frekuensi")
                     
+                    # Ambil 10 karyawan dengan frekuensi total terbanyak
+                    top_employees = (
+                        top_late.groupby("Nama Lengkap")["Frekuensi"]
+                        .sum()
+                        .nlargest(10)
+                        .index
+                    )
+                    top_late = top_late[top_late["Nama Lengkap"].isin(top_employees)]
+                    
+                    # Buat stacked bar chart berdasarkan jenis statusnya
                     fig_top = px.bar(
                         top_late,
                         x="Frekuensi",
-                        y="Nama Karyawan",
+                        y="Nama Lengkap",
+                        color="Status_Clean",
                         orientation="h",
-                        title="Top 10 Karyawan Catatan Khusus (Late/Sakit/Cuti/Izin)",
-                        color="Frekuensi",
-                        color_continuous_scale="Reds",
-                        text="Frekuensi"
+                        title="Top 10 Karyawan Catatan Khusus (Rincian per Status)",
+                        text="Frekuensi",
+                        color_discrete_map={
+                            "Late": "#FF0000",
+                            "Sakit": "#FFC000",
+                            "Cuti": "#1F4E79",
+                            "Izin": "#17BECF",
+                            "Alpha": "#8B0000"
+                        }
                     )
-                    fig_top.update_layout(yaxis={"categoryorder": "total ascending"})
-                    fig_top.update_traces(textposition="outside")
+                    fig_top.update_layout(
+                        yaxis={"categoryorder": "total ascending"},
+                        legend_title_text="Status Khusus"
+                    )
                     st.plotly_chart(fig_top, use_container_width=True)
                 else:
                     st.success("🎉 Tidak ditemukan catatan keterlambatan atau ketidakhadiran khusus pada data absensi saat ini.")
