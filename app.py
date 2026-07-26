@@ -1371,25 +1371,40 @@ if menu_pilihan == "🤖 AI HR Assistant":
                             4. Kembalikan HANYA kode python di dalam block ```python ... ``` tanpa teks tambahan apapun.
                             """
 
-                            # --- AUTO-RETRY LOGIC MENCEGAH ERROR 429 ---
-                            response = None
-                            max_retries = 3
+                            # --- STRATEGI MODEL FALLBACK + EXPONENTIAL BACKOFF (ANTI 429) ---
+                            # Jika satu model sedang mencapai limit, otomatis berganti ke model lain
+                            model_list = [
+                                'gemini-1.5-flash',
+                                'gemini-2.0-flash',
+                                'gemini-1.5-flash-8b'
+                            ]
                             
-                            for attempt in range(max_retries):
-                                try:
-                                    response = client.models.generate_content(
-                                        model='gemini-2.0-flash',
-                                        contents=system_prompt,
-                                    )
-                                    if response and response.text:
-                                        break
-                                except Exception as err:
-                                    err_str = str(err)
-                                    if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                                        if attempt < max_retries - 1:
-                                            time.sleep(3)
+                            response = None
+                            last_err = None
+
+                            for m_name in model_list:
+                                for attempt in range(3):
+                                    try:
+                                        response = client.models.generate_content(
+                                            model=m_name,
+                                            contents=system_prompt,
+                                        )
+                                        if response and response.text:
+                                            break
+                                    except Exception as err:
+                                        last_err = err
+                                        err_str = str(err)
+                                        if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                                            # Jeda bertahap: 3d, 5d, 7d
+                                            wait_time = (attempt + 1) * 2 + 1
+                                            time.sleep(wait_time)
                                             continue
-                                    raise err
+                                        break
+                                if response and response.text:
+                                    break
+
+                            if not response or not response.text:
+                                raise last_err if last_err else Exception("Gagal terhubung ke Gemini API.")
 
                             # Ekstrak Kode Python
                             raw_text = response.text
@@ -1420,7 +1435,7 @@ if menu_pilihan == "🤖 AI HR Assistant":
                     except Exception as e:
                         err_str = str(e)
                         if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                            st.error("⏳ Server API Gemini sedang sangat padat. Silakan tunggu sekitar 10–15 detik sebelum menekan kirim kembali.")
+                            st.error("⏳ Jeda sebentar (10–15 detik) ya, kuota gratisan API Gemini sedang di-reset oleh Google. Setelah itu klik kirim lagi.")
                         else:
                             st.error(f"Gagal memproses pertanyaan: {err_str}")
                         st.caption("Coba formulasikan ulang pertanyaan kamu dengan kalimat yang lebih spesifik.")
