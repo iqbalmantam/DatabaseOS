@@ -1345,7 +1345,6 @@ if menu_pilihan == "🤖 AI HR Assistant":
                         if not client:
                             st.error("❌ `GEMINI_API_KEY` belum diset di `st.secrets`.")
                         else:
-                            # Mengirimkan Skema/Struktur Kolom saja untuk Keamanan Data
                             data_schema = f"""
                             Variabel DataFrame bernama `df` memiliki struktur kolom berikut:
                             {df_ai_source.dtypes.to_string()}
@@ -1371,15 +1370,26 @@ if menu_pilihan == "🤖 AI HR Assistant":
                             4. Kembalikan HANYA kode python di dalam block ```python ... ``` tanpa teks tambahan apapun.
                             """
 
-                            # --- MENGGUNAKAN MODEL GEMINI 2.0 FLASH YANG TERBARU ---
-                            response = client.models.generate_content(
-                                model='gemini-2.0-flash',
-                                contents=system_prompt,
-                            )
+                            # --- MODEL GUNAKAN GEMINI-1.5-FLASH DENGAN FALLBACK UNTUK MENCEGAH EROR QUOTA ---
+                            response = None
+                            try:
+                                response = client.models.generate_content(
+                                    model='gemini-1.5-flash',
+                                    contents=system_prompt,
+                                )
+                            except Exception as model_err:
+                                # Fallback jika flash mencapai rate limit
+                                response = client.models.generate_content(
+                                    model='gemini-1.5-pro',
+                                    contents=system_prompt,
+                                )
 
                             # Ekstrak Kode Python
                             raw_text = response.text
-                            code_block = raw_text.split("```python")[1].split("```")[0].strip()
+                            if "```python" in raw_text:
+                                code_block = raw_text.split("```python")[1].split("```")[0].strip()
+                            else:
+                                code_block = raw_text.strip("`")
 
                             # Eksekusi Kode secara Lokal
                             local_env = {"df": df_ai_source.copy(), "px": px, "pd": pd}
@@ -1399,5 +1409,8 @@ if menu_pilihan == "🤖 AI HR Assistant":
                                 st.session_state.ai_chat_history.append({"role": "assistant", "content": str(res)})
 
                     except Exception as e:
-                        st.error(f"Gagal memproses pertanyaan: {str(e)}")
+                        if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                            st.error("⏳ Kuota API sedang habis/terbatas. Silakan tunggu sekitar 15-30 detik lalu coba lagi.")
+                        else:
+                            st.error(f"Gagal memproses pertanyaan: {str(e)}")
                         st.caption("Coba formulasikan ulang pertanyaan kamu dengan kalimat yang lebih spesifik.")
