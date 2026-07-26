@@ -565,8 +565,35 @@ if menu_pilihan == "👥 Master Data Karyawan":
 
     # --- DASHBOARD ANALYTICS ---
     with st.expander("📊 **Dashboard Analytics & Visualisasi Data**", expanded=True):
-        if not st.session_state.employees.empty:
-            df_ana = st.session_state.employees.copy()
+        df_snap_hist = load_snapshot_data()
+        
+        # 1. Tentukan Periode default (Bulan Berjalan)
+        current_period = date.today().strftime("%Y-%m")
+        
+        # Ambil daftar periode snapshot yang tersedia
+        available_periods = []
+        if not df_snap_hist.empty and "Periode" in df_snap_hist.columns:
+            available_periods = sorted(list(df_snap_hist["Periode"].unique()), reverse=True)
+        
+        # Opsi default untuk bulan berjalan real-time
+        realtime_option = f"{current_period} (Bulan Berjalan - Realtime)"
+        if realtime_option not in available_periods:
+            available_periods.insert(0, realtime_option)
+
+        # Dropdown Filter Periode untuk Dashboard
+        selected_dash_period = st.selectbox(
+            "📅 Pilih Periode Dashboard:",
+            options=available_periods,
+            index=0
+        )
+
+        # 2. Filter data yang akan ditayangkan di grafik
+        if "Realtime" in selected_dash_period:
+            df_ana = st.session_state.employees[st.session_state.employees["Status"] == "Aktif"].copy()
+        else:
+            df_ana = df_snap_hist[df_snap_hist["Periode"] == selected_dash_period].copy()
+
+        if not df_ana.empty:
             tab_overview, tab_trend, tab_cost = st.tabs([
                 "📈 Ringkasan & Status",
                 "🗓️ Tren Snapshot Bulanan",
@@ -580,7 +607,7 @@ if menu_pilihan == "👥 Master Data Karyawan":
                         fig_status = px.pie(
                             df_ana,
                             names="Status",
-                            title="Komposisi Status Karyawan",
+                            title=f"Komposisi Status Karyawan ({selected_dash_period})",
                             hole=0.4,
                             color_discrete_sequence=px.colors.qualitative.Set2,
                         )
@@ -595,7 +622,7 @@ if menu_pilihan == "👥 Master Data Karyawan":
                             x="Jumlah",
                             y="Posisi",
                             orientation="h",
-                            title="Top 10 Posisi Terbanyak",
+                            title=f"Top 10 Posisi Terbanyak ({selected_dash_period})",
                             color="Jumlah",
                             color_continuous_scale="Blues",
                         )
@@ -603,7 +630,6 @@ if menu_pilihan == "👥 Master Data Karyawan":
                         st.plotly_chart(fig_role, use_container_width=True)
 
             with tab_trend:
-                df_snap_hist = load_snapshot_data()
                 if not df_snap_hist.empty and "Periode" in df_snap_hist.columns:
                     trend_summary = (
                         df_snap_hist.groupby("Periode")["ID"]
@@ -650,7 +676,7 @@ if menu_pilihan == "👥 Master Data Karyawan":
                             x="Jumlah",
                             y="Cost Center",
                             orientation="h",
-                            title="Jumlah Karyawan per Cost Center",
+                            title=f"Jumlah Karyawan per Cost Center ({selected_dash_period})",
                             color="Jumlah",
                             color_continuous_scale="Viridis",
                             text="Jumlah",
@@ -677,7 +703,7 @@ if menu_pilihan == "👥 Master Data Karyawan":
                             site_counts,
                             names="Site",
                             values="Jumlah",
-                            title="Distribusi Lokasi Kerja (Site)",
+                            title=f"Distribusi Lokasi Kerja / Site ({selected_dash_period})",
                             hole=0.3,
                         )
                         st.plotly_chart(fig_site, use_container_width=True)
@@ -1125,7 +1151,6 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
         )
 
         # Map ID ke Nama Terbaru agar 1 ID HANYA MENGGUNAKAN 1 NAMA
-        # (Mencegah double ID jika ada perbedaan penulisan nama)
         id_to_name = (
             df_absen_clean.groupby("ID")["Nama Lengkap"]
             .last()
