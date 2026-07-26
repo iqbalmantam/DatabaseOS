@@ -1371,8 +1371,9 @@ if menu_pilihan == "🤖 AI HR Assistant":
                             4. Kembalikan HANYA kode python di dalam block ```python ... ``` tanpa teks tambahan apapun.
                             """
 
+                            # --- MENGGUNAKAN MODEL GEMINI 2.0 FLASH YANG TERBARU ---
                             response = client.models.generate_content(
-                                model='gemini-2.5-flash',
+                                model='gemini-2.0-flash',
                                 contents=system_prompt,
                             )
 
