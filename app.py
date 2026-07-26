@@ -1250,13 +1250,9 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             columns=["In", "Out", "Shift", "Status"], level=1
         )
 
-        # Ubah nilai kosong / NaN menjadi '-'
+        # Ubah nilai kosong / NaN menjadi '-' (KODE UNIVERSAL LINTAS VERSI PANDAS)
         matrix_df = matrix_df.fillna("-")
-        matrix_df = matrix_df.map(
-            lambda x: (
-                "-" if str(x).strip().lower() in ["none", "nan", ""] else x
-            )
-        )
+        matrix_df = matrix_df.replace(["None", "nan", "NaN", "null", ""], "-")
 
         # Fungsi Styling Matrix
         def apply_matrix_styles(df):
@@ -1307,7 +1303,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
 
 
 # ==============================================================================
-# MODUL 3: AI HR ASSISTANT (CHATBOT) - VERSI OPTIMAL UNTUK FREE TIER API
+# MODUL 3: AI HR ASSISTANT (CHATBOT BOT)
 # ==============================================================================
 if menu_pilihan == "🤖 AI HR Assistant":
 
@@ -1346,41 +1342,50 @@ if menu_pilihan == "🤖 AI HR Assistant":
                         if not client:
                             st.error("❌ `GEMINI_API_KEY` belum diset di `st.secrets`.")
                         else:
-                            # OTOMASI HEMAT TOKEN: Mengirimkan daftar kolom saja tanpa isi data
-                            cols_str = ", ".join([f"'{c}'" for c in df_ai_source.columns])
+                            data_schema = f"""
+                            Variabel DataFrame bernama `df` memiliki struktur kolom berikut:
+                            {df_ai_source.dtypes.to_string()}
 
-                            system_prompt = f"""DF 'df' Memiliki Kolom: [{cols_str}]
-User Prompt: "{user_prompt}"
+                            Sampel 2 baris data:
+                            {df_ai_source.head(2).to_dict(orient='records')}
+                            """
 
-Return ONLY Python code without extra text.
-Rules:
-1. Use DataFrame variable `df`.
-2. Save textual/tabular answer to variable `result`.
-3. If requested chart/graph, use Plotly Express (`px`) and save to `fig`.
-4. Wrap python code in ```python ... ```."""
+                            system_prompt = f"""
+                            Kamu adalah Data Analyst profesional untuk Employee Database Manager.
+                            Struktur dataframe `df` adalah sebagai berikut:
+                            {data_schema}
 
-                            # Gunakan model hemat token untuk free-tier
+                            Pertanyaan User: "{user_prompt}"
+
+                            TUGAS KAMU:
+                            Tuliskan KODE PYTHON SAJA untuk memproses DataFrame `df` dan menjawab pertanyaan user.
+
+                            ATURAN KODE:
+                            1. Gunakan variabel `df` yang sudah tersedia.
+                            2. Simpan teks/tabel/dataframe jawaban ke variabel `result`.
+                            3. Jika user meminta grafik/chart, gunakan Plotly Express (`px`) dan simpan ke variabel `fig`.
+                            4. Kembalikan HANYA kode python di dalam block ```python ... ``` tanpa teks tambahan apapun.
+                            """
+
+                            # --- MEKANISME AUTO-RETRY SAAT KUOTA API PENUH (RATE LIMIT 429) ---
                             response = None
-                            last_err = None
-
-                            for attempt in range(3):
+                            max_retries = 3
+                            
+                            for attempt in range(max_retries):
                                 try:
                                     response = client.models.generate_content(
-                                        model='gemini-1.5-flash',
+                                        model='gemini-2.0-flash',
                                         contents=system_prompt,
                                     )
                                     if response and response.text:
                                         break
                                 except Exception as err:
-                                    last_err = err
                                     err_str = str(err)
                                     if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                                        time.sleep(3 * (attempt + 1))
-                                        continue
-                                    break
-
-                            if not response or not response.text:
-                                raise last_err if last_err else Exception("Gagal terhubung ke Gemini API.")
+                                        if attempt < max_retries - 1:
+                                            time.sleep(3)
+                                            continue
+                                    raise err
 
                             # Ekstrak Kode Python
                             raw_text = response.text
@@ -1411,7 +1416,7 @@ Rules:
                     except Exception as e:
                         err_str = str(e)
                         if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                            st.error("⏳ Kuota gratisan Gemini sedang di-reset. Mohon tunggu 10–15 detik lalu kirim ulang pertanyaan kamu.")
+                            st.error("⏳ Server API Gemini sedang sangat padat. Silakan tunggu sekitar 10–15 detik sebelum menekan kirim kembali.")
                         else:
                             st.error(f"Gagal memproses pertanyaan: {err_str}")
                         st.caption("Coba formulasikan ulang pertanyaan kamu dengan kalimat yang lebih spesifik.")
