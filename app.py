@@ -1,6 +1,7 @@
 from datetime import date
 import io
 from fpdf import FPDF
+from google import genai
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -8,15 +9,6 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
-
-# Import Gemini SDK
-try:
-    from google import genai
-    HAS_GENAI = True
-except ImportError:
-    HAS_GENAI = False
-
-import google.generativeai as legacy_genai
 
 # Set Halaman Streamlit
 st.set_page_config(
@@ -89,6 +81,11 @@ ADMIN_PIN = st.secrets.get("ADMIN_PIN", "2273")
 
 # --- KONEKSI GOOGLE SHEETS ---
 conn = st.connection("gsheets", type=GSheetsConnection)
+
+# --- CLIENT GEMINI AI ---
+@st.cache_resource
+def get_gemini_client():
+    return genai.Client(api_key=st.secrets.get("GEMINI_API_KEY"))
 
 # --- SIDEBAR: NAVIGASI MODUL ---
 st.sidebar.header("📁 Menu Utama")
@@ -1309,7 +1306,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
 
 
 # ==============================================================================
-# MODUL 3: AI HR ASSISTANT (CHATBOT BOT) - SOLUSI ERROR 404
+# MODUL 3: AI HR ASSISTANT (CHATBOT BOT)
 # ==============================================================================
 if menu_pilihan == "🤖 AI HR Assistant":
 
@@ -1343,8 +1340,9 @@ if menu_pilihan == "🤖 AI HR Assistant":
             with st.chat_message("assistant"):
                 with st.spinner("Menganalisis data..."):
                     try:
-                        api_key = st.secrets.get("GEMINI_API_KEY")
-                        if not api_key:
+                        client = get_gemini_client()
+
+                        if not client:
                             st.error("❌ `GEMINI_API_KEY` belum diset di `st.secrets`.")
                         else:
                             data_schema = f"""
@@ -1372,39 +1370,20 @@ if menu_pilihan == "🤖 AI HR Assistant":
                             4. Kembalikan HANYA kode python di dalam block ```python ... ``` tanpa teks tambahan apapun.
                             """
 
-                            # --- PENGGUNAAN LEGACY SDK YANG LEBIH STABIL & ANTI ERROR 404 ---
-                            legacy_genai.configure(api_key=api_key)
-                            
-                            model_candidates = [
-                                "gemini-1.5-flash",
-                                "gemini-1.5-pro",
-                                "gemini-pro"
-                            ]
-
-                            response_text = None
-                            last_err = None
-
-                            for m_name in model_candidates:
-                                try:
-                                    model = legacy_genai.GenerativeModel(m_name)
-                                    res = model.generate_content(system_prompt)
-                                    if res and res.text:
-                                        response_text = res.text
-                                        break
-                                except Exception as e:
-                                    last_err = e
-                                    continue
-
-                            if not response_text:
-                                raise last_err if last_err else Exception("Gagal menghubungi layanan Gemini API.")
+                            # --- MENGGUNAKAN NAMA MODEL YANG DUKUNG GOOGLE-GENAI ---
+                            response = client.models.generate_content(
+                                model='gemini-2.0-flash',
+                                contents=system_prompt,
+                            )
 
                             # Ekstrak Kode Python
-                            if "```python" in response_text:
-                                code_block = response_text.split("```python")[1].split("```")[0].strip()
-                            elif "```" in response_text:
-                                code_block = response_text.split("```")[1].split("```")[0].strip()
+                            raw_text = response.text
+                            if "```python" in raw_text:
+                                code_block = raw_text.split("```python")[1].split("```")[0].strip()
+                            elif "```" in raw_text:
+                                code_block = raw_text.split("```")[1].split("```")[0].strip()
                             else:
-                                code_block = response_text.strip("`")
+                                code_block = raw_text.strip("`")
 
                             # Eksekusi Kode secara Lokal
                             local_env = {"df": df_ai_source.copy(), "px": px, "pd": pd}
