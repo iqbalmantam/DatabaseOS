@@ -589,9 +589,29 @@ if menu_pilihan == "👥 Master Data Karyawan":
 
         # 2. Filter data yang akan ditayangkan di grafik
         if "Realtime" in selected_dash_period:
-            df_ana = st.session_state.employees[st.session_state.employees["Status"] == "Aktif"].copy()
+            df_ana = st.session_state.employees.copy()
+            active_period_str = current_period
         else:
             df_ana = df_snap_hist[df_snap_hist["Periode"] == selected_dash_period].copy()
+            active_period_str = selected_dash_period
+
+        # --- LOGIKA FITUR FILTER RESIGN BULAN LALU ---
+        def filter_resign_for_period(df, target_period):
+            if df.empty or "Status" not in df.columns:
+                return df
+            
+            # 1. Selalu ambil karyawan Aktif & PKWT
+            mask_aktif = df["Status"].astype(str).str.strip().isin(["Aktif", "PKWT"])
+            
+            # 2. Karyawan Resign HANYA diambil jika Tanggal Resign cocok dengan bulan/periode terpilih
+            mask_resign_bulan_ini = pd.Series(False, index=df.index)
+            if "Tanggal Resign" in df.columns:
+                resign_dates = pd.to_datetime(df["Tanggal Resign"], errors="coerce").dt.strftime("%Y-%m")
+                mask_resign_bulan_ini = (df["Status"].astype(str).str.strip() == "Resign") & (resign_dates == target_period)
+                
+            return df[mask_aktif | mask_resign_bulan_ini]
+
+        df_pie_chart = filter_resign_for_period(df_ana, active_period_str)
 
         if not df_ana.empty:
             tab_overview, tab_trend, tab_cost = st.tabs([
@@ -603,9 +623,9 @@ if menu_pilihan == "👥 Master Data Karyawan":
             with tab_overview:
                 c1, c2 = st.columns(2)
                 with c1:
-                    if "Status" in df_ana.columns:
+                    if "Status" in df_pie_chart.columns and not df_pie_chart.empty:
                         fig_status = px.pie(
-                            df_ana,
+                            df_pie_chart,
                             names="Status",
                             title=f"Komposisi Status Karyawan ({selected_dash_period})",
                             hole=0.4,
@@ -613,16 +633,20 @@ if menu_pilihan == "👥 Master Data Karyawan":
                         )
                         fig_status.update_traces(textposition="inside", textinfo="percent+label")
                         st.plotly_chart(fig_status, use_container_width=True)
+                    else:
+                        st.info("Tidak ada data status untuk ditampilkan.")
                 with c2:
                     if "Posisi" in df_ana.columns:
-                        top_roles = df_ana["Posisi"].value_counts().head(10).reset_index()
+                        # Di Top Posisi, kita filter khusus karyawan Aktif saja agar grafik posisi tetap fokus pada karyawan yang bekerja
+                        df_posisi_aktif = df_ana[df_ana["Status"] == "Aktif"] if "Status" in df_ana.columns else df_ana
+                        top_roles = df_posisi_aktif["Posisi"].value_counts().head(10).reset_index()
                         top_roles.columns = ["Posisi", "Jumlah"]
                         fig_role = px.bar(
                             top_roles,
                             x="Jumlah",
                             y="Posisi",
                             orientation="h",
-                            title=f"Top 10 Posisi Terbanyak ({selected_dash_period})",
+                            title=f"Top 10 Posisi Terbanyak Karyawan Aktif ({selected_dash_period})",
                             color="Jumlah",
                             color_continuous_scale="Blues",
                         )
