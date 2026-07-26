@@ -1371,18 +1371,17 @@ if menu_pilihan == "🤖 AI HR Assistant":
                             4. Kembalikan HANYA kode python di dalam block ```python ... ``` tanpa teks tambahan apapun.
                             """
 
-                            # --- STRATEGI MODEL FALLBACK + EXPONENTIAL BACKOFF (ANTI 429) ---
-                            # Jika satu model sedang mencapai limit, otomatis berganti ke model lain
-                            model_list = [
-                                'gemini-1.5-flash',
+                            # --- STRATEGI PENANGANAN AKURAT MODEL & EROR 404/429 ---
+                            # Menggunakan model resmi yang didukung di SDK google-genai
+                            model_candidates = [
+                                'gemini-2.5-flash',
                                 'gemini-2.0-flash',
-                                'gemini-1.5-flash-8b'
                             ]
                             
                             response = None
                             last_err = None
 
-                            for m_name in model_list:
+                            for m_name in model_candidates:
                                 for attempt in range(3):
                                     try:
                                         response = client.models.generate_content(
@@ -1392,14 +1391,21 @@ if menu_pilihan == "🤖 AI HR Assistant":
                                         if response and response.text:
                                             break
                                     except Exception as err:
-                                        last_err = err
                                         err_str = str(err)
+                                        # Jika 404 NOT_FOUND, abaikan model ini dan coba model berikutnya
+                                        if "404" in err_str or "NOT_FOUND" in err_str:
+                                            break
+                                        
+                                        # Jika 429 Rate Limit / Kuota Sibuk, lakukan jeda waktu otomatis
                                         if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                                            # Jeda bertahap: 3d, 5d, 7d
-                                            wait_time = (attempt + 1) * 2 + 1
+                                            last_err = err
+                                            wait_time = (attempt + 1) * 3
                                             time.sleep(wait_time)
                                             continue
+                                        
+                                        last_err = err
                                         break
+                                
                                 if response and response.text:
                                     break
 
