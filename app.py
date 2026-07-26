@@ -1370,19 +1370,11 @@ if menu_pilihan == "🤖 AI HR Assistant":
                             4. Kembalikan HANYA kode python di dalam block ```python ... ``` tanpa teks tambahan apapun.
                             """
 
-                            # --- MODEL GUNAKAN GEMINI-1.5-FLASH DENGAN FALLBACK UNTUK MENCEGAH EROR QUOTA ---
-                            response = None
-                            try:
-                                response = client.models.generate_content(
-                                    model='gemini-1.5-flash',
-                                    contents=system_prompt,
-                                )
-                            except Exception as model_err:
-                                # Fallback jika flash mencapai rate limit
-                                response = client.models.generate_content(
-                                    model='gemini-1.5-pro',
-                                    contents=system_prompt,
-                                )
+                            # --- MODEL GUNAKAN GEMINI-2.5-FLASH RESMI & STABIL ---
+                            response = client.models.generate_content(
+                                model='gemini-2.5-flash',
+                                contents=system_prompt,
+                            )
 
                             # Ekstrak Kode Python
                             raw_text = response.text
@@ -1409,8 +1401,9 @@ if menu_pilihan == "🤖 AI HR Assistant":
                                 st.session_state.ai_chat_history.append({"role": "assistant", "content": str(res)})
 
                     except Exception as e:
-                        if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                            st.error("⏳ Kuota API sedang habis/terbatas. Silakan tunggu sekitar 15-30 detik lalu coba lagi.")
+                        err_str = str(e)
+                        if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                            st.error("⏳ Kuota API sedang penuh/terbatas. Tunggu sekitar 15–30 detik lalu ajukan pertanyaan lagi.")
                         else:
-                            st.error(f"Gagal memproses pertanyaan: {str(e)}")
+                            st.error(f"Gagal memproses pertanyaan: {err_str}")
                         st.caption("Coba formulasikan ulang pertanyaan kamu dengan kalimat yang lebih spesifik.")
