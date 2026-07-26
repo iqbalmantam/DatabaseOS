@@ -3,7 +3,7 @@ import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# Import modul AI Chatbot yang dibuat di file terpisah
+# Import modul AI Chatbot dari file ai_bot.py
 from ai_bot import render_ai_bot_tab
 
 # --- CONFIG APLIKASI ---
@@ -25,8 +25,8 @@ def load_data_from_gsheets():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
     
-    # Buka Google Sheet berdasarkan Nama atau Key (Sesuaikan nama Sheet kamu)
-    sheet = client.open(st.secrets["gsheets"]["spreadsheet_name"]).sheet1
+    # Buka Google Sheet berdasarkan Spreadsheet ID
+    sheet = client.open_by_key(st.secrets["gsheets"]["spreadsheet_id"]).sheet1
     data = sheet.get_all_records()
     
     return pd.DataFrame(data)
@@ -39,7 +39,8 @@ def main():
     try:
         df_employee = load_data_from_gsheets()
     except Exception as e:
-        st.error(f"Gagal mengambil data dari Google Sheets: {e}")
+        st.error("❌ Gagal mengambil data dari Google Sheets. Detail Error:")
+        st.exception(e)  # Menampilkan pesan error teknis lengkap jika terjadi kendala
         st.stop()
 
     # --- TAMPILAN SIDEBAR ---
@@ -83,7 +84,7 @@ def main():
     with tab_snapshot:
         st.subheader("Laporan Snapshot Bulanan")
         st.write("Area untuk mengelola data snapshot historis dan status karyawan resign.")
-        # Tempatkan logika/fitur snapshot kamu di sini
+        
         if "Status" in df_employee.columns:
             resigned_df = df_employee[df_employee["Status"].str.lower() == "resign"]
             st.metric("Total Karyawan Resign", len(resigned_df))
