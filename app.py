@@ -1307,7 +1307,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
 
 
 # ==============================================================================
-# MODUL 3: AI HR ASSISTANT (CHATBOT BOT)
+# MODUL 3: AI HR ASSISTANT (CHATBOT) - VERSI OPTIMAL UNTUK FREE TIER API
 # ==============================================================================
 if menu_pilihan == "🤖 AI HR Assistant":
 
@@ -1346,67 +1346,37 @@ if menu_pilihan == "🤖 AI HR Assistant":
                         if not client:
                             st.error("❌ `GEMINI_API_KEY` belum diset di `st.secrets`.")
                         else:
-                            data_schema = f"""
-                            Variabel DataFrame bernama `df` memiliki struktur kolom berikut:
-                            {df_ai_source.dtypes.to_string()}
+                            # OTOMASI HEMAT TOKEN: Mengirimkan daftar kolom saja tanpa isi data
+                            cols_str = ", ".join([f"'{c}'" for c in df_ai_source.columns])
 
-                            Sampel 2 baris data:
-                            {df_ai_source.head(2).to_dict(orient='records')}
-                            """
+                            system_prompt = f"""DF 'df' Memiliki Kolom: [{cols_str}]
+User Prompt: "{user_prompt}"
 
-                            system_prompt = f"""
-                            Kamu adalah Data Analyst profesional untuk Employee Database Manager.
-                            Struktur dataframe `df` adalah sebagai berikut:
-                            {data_schema}
+Return ONLY Python code without extra text.
+Rules:
+1. Use DataFrame variable `df`.
+2. Save textual/tabular answer to variable `result`.
+3. If requested chart/graph, use Plotly Express (`px`) and save to `fig`.
+4. Wrap python code in ```python ... ```."""
 
-                            Pertanyaan User: "{user_prompt}"
-
-                            TUGAS KAMU:
-                            Tuliskan KODE PYTHON SAJA untuk memproses DataFrame `df` dan menjawab pertanyaan user.
-
-                            ATURAN KODE:
-                            1. Gunakan variabel `df` yang sudah tersedia.
-                            2. Simpan teks/tabel/dataframe jawaban ke variabel `result`.
-                            3. Jika user meminta grafik/chart, gunakan Plotly Express (`px`) dan simpan ke variabel `fig`.
-                            4. Kembalikan HANYA kode python di dalam block ```python ... ``` tanpa teks tambahan apapun.
-                            """
-
-                            # --- STRATEGI PENANGANAN AKURAT MODEL & EROR 404/429 ---
-                            # Menggunakan model resmi yang didukung di SDK google-genai
-                            model_candidates = [
-                                'gemini-2.5-flash',
-                                'gemini-2.0-flash',
-                            ]
-                            
+                            # Gunakan model hemat token untuk free-tier
                             response = None
                             last_err = None
 
-                            for m_name in model_candidates:
-                                for attempt in range(3):
-                                    try:
-                                        response = client.models.generate_content(
-                                            model=m_name,
-                                            contents=system_prompt,
-                                        )
-                                        if response and response.text:
-                                            break
-                                    except Exception as err:
-                                        err_str = str(err)
-                                        # Jika 404 NOT_FOUND, abaikan model ini dan coba model berikutnya
-                                        if "404" in err_str or "NOT_FOUND" in err_str:
-                                            break
-                                        
-                                        # Jika 429 Rate Limit / Kuota Sibuk, lakukan jeda waktu otomatis
-                                        if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                                            last_err = err
-                                            wait_time = (attempt + 1) * 3
-                                            time.sleep(wait_time)
-                                            continue
-                                        
-                                        last_err = err
+                            for attempt in range(3):
+                                try:
+                                    response = client.models.generate_content(
+                                        model='gemini-1.5-flash',
+                                        contents=system_prompt,
+                                    )
+                                    if response and response.text:
                                         break
-                                
-                                if response and response.text:
+                                except Exception as err:
+                                    last_err = err
+                                    err_str = str(err)
+                                    if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                                        time.sleep(3 * (attempt + 1))
+                                        continue
                                     break
 
                             if not response or not response.text:
@@ -1441,7 +1411,7 @@ if menu_pilihan == "🤖 AI HR Assistant":
                     except Exception as e:
                         err_str = str(e)
                         if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                            st.error("⏳ Jeda sebentar (10–15 detik) ya, kuota gratisan API Gemini sedang di-reset oleh Google. Setelah itu klik kirim lagi.")
+                            st.error("⏳ Kuota gratisan Gemini sedang di-reset. Mohon tunggu 10–15 detik lalu kirim ulang pertanyaan kamu.")
                         else:
                             st.error(f"Gagal memproses pertanyaan: {err_str}")
                         st.caption("Coba formulasikan ulang pertanyaan kamu dengan kalimat yang lebih spesifik.")
