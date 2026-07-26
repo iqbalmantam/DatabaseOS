@@ -1370,11 +1370,31 @@ if menu_pilihan == "🤖 AI HR Assistant":
                             4. Kembalikan HANYA kode python di dalam block ```python ... ``` tanpa teks tambahan apapun.
                             """
 
-                            # --- MENGGUNAKAN MODEL GEMINI-1.5-FLASH YANG AKTIF DAN TERSEDIA ---
-                            response = client.models.generate_content(
-                                model='gemini-1.5-flash',
-                                contents=system_prompt,
-                            )
+                            # --- STRATEGI FALLBACK MODEL UNTUK MENCEGAH ERROR 404 ---
+                            model_candidates = [
+                                "gemini-2.5-flash",
+                                "gemini-2.0-flash",
+                                "gemini-1.5-flash",
+                                "models/gemini-1.5-flash"
+                            ]
+
+                            response = None
+                            last_error = None
+
+                            for model_name in model_candidates:
+                                try:
+                                    response = client.models.generate_content(
+                                        model=model_name,
+                                        contents=system_prompt,
+                                    )
+                                    if response and response.text:
+                                        break
+                                except Exception as err:
+                                    last_error = err
+                                    continue
+
+                            if response is None:
+                                raise last_error
 
                             # Ekstrak Kode Python
                             raw_text = response.text
