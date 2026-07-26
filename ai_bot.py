@@ -5,12 +5,12 @@ from google import genai
 
 @st.cache_resource
 def get_gemini_client():
-    # Mengambil API key dari Secrets Streamlit
+    # Mengambil Gemini API Key dari Streamlit Secrets
     return genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
 def render_ai_bot_tab(df: pd.DataFrame):
-    st.header("🤖 HR Data Assistant (AI Query)")
-    st.caption("Tanyakan data karyawan menggunakan bahasa sehari-hari.")
+    st.subheader("🤖 HR Data Assistant")
+    st.caption("Tanyakan data karyawan menggunakan bahasa sehari-hari. AI akan menganalisis data secara otomatis.")
 
     # 1. Inisialisasi Riwayat Chat
     if "chat_history" not in st.session_state:
@@ -24,7 +24,7 @@ def render_ai_bot_tab(df: pd.DataFrame):
             st.write(msg["content"])
 
     # 3. Input Pertanyaan User
-    if user_query := st.chat_input("Contoh: Berapa jumlah karyawan per divisi?"):
+    if user_query := st.chat_input("Contoh: Tampilkan grafik jumlah karyawan per divisi"):
         # Tampilkan pesan user
         st.session_state.chat_history.append({"role": "user", "content": user_query})
         with st.chat_message("user"):
@@ -36,7 +36,7 @@ def render_ai_bot_tab(df: pd.DataFrame):
                 try:
                     client = get_gemini_client()
 
-                    # Informasi struktur data saja (Aman & Tidak Mengirim Seluruh Isi Data)
+                    # Informasi skema data saja (Aman: Tanpa mengirim seluruh data sensitif ke API)
                     data_schema = f"""
                     DataFrame bernama `df` memiliki kolom berikut:
                     {df.dtypes.to_string()}
@@ -46,7 +46,7 @@ def render_ai_bot_tab(df: pd.DataFrame):
                     """
 
                     prompt = f"""
-                    Kamu adalah Data Analyst profesional.
+                    Kamu adalah Data Analyst profesional untuk sistem HR.
                     Berikut adalah struktur dataframe `df`:
                     {data_schema}
 
@@ -57,18 +57,17 @@ def render_ai_bot_tab(df: pd.DataFrame):
 
                     ATURAN KODE:
                     1. Gunakan variabel `df` yang sudah ada.
-                    2. Simpan hasil jawaban teks/tabel ke variabel `result`.
+                    2. Simpan hasil jawaban teks atau dataframe ke variabel `result`.
                     3. Jika user meminta grafik/chart, gunakan Plotly Express (`px`) dan simpan ke variabel `fig`.
-                    4. Sertakan HANYA kode di dalam block ```python ... ``` tanpa teks penjelasan lain.
+                    4. Sertakan HANYA kode di dalam block ```python ... ``` tanpa teks penjelasan lain di luar block.
                     """
 
-                    # Panggil model Gemini
                     response = client.models.generate_content(
                         model='gemini-2.5-flash',
                         contents=prompt,
                     )
 
-                    # Extract kode Python dari response
+                    # Extract kode Python dari response Gemini
                     raw_text = response.text
                     code_block = raw_text.split("```python")[1].split("```")[0].strip()
 
@@ -76,10 +75,10 @@ def render_ai_bot_tab(df: pd.DataFrame):
                     local_env = {"df": df, "px": px, "pd": pd}
                     exec(code_block, globals(), local_env)
 
-                    # Tampilkan Hasil Ke User
+                    # Tampilkan Hasil
                     if "fig" in local_env:
                         st.plotly_chart(local_env["fig"], use_container_width=True)
-                        st.session_state.chat_history.append({"role": "assistant", "content": "[Menampilkan Visualisasi Graphic]"})
+                        st.session_state.chat_history.append({"role": "assistant", "content": "[Menampilkan Visualisasi Grafik]"})
                     
                     if "result" in local_env:
                         res = local_env["result"]
