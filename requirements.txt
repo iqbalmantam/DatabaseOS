@@ -1,6 +1,6 @@
 streamlit
-st-gsheets-connection
 pandas
-openpyxl
-fpdf2
+google-genai
 plotly
+gspread
+oauth2client
