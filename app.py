@@ -1,5 +1,6 @@
 from datetime import date
 import io
+import time
 from fpdf import FPDF
 from google import genai
 import openpyxl
@@ -1370,11 +1371,25 @@ if menu_pilihan == "🤖 AI HR Assistant":
                             4. Kembalikan HANYA kode python di dalam block ```python ... ``` tanpa teks tambahan apapun.
                             """
 
-                            # --- MENGGUNAKAN NAMA MODEL YANG DUKUNG GOOGLE-GENAI ---
-                            response = client.models.generate_content(
-                                model='gemini-2.0-flash',
-                                contents=system_prompt,
-                            )
+                            # --- AUTO-RETRY LOGIC MENCEGAH ERROR 429 ---
+                            response = None
+                            max_retries = 3
+                            
+                            for attempt in range(max_retries):
+                                try:
+                                    response = client.models.generate_content(
+                                        model='gemini-2.0-flash',
+                                        contents=system_prompt,
+                                    )
+                                    if response and response.text:
+                                        break
+                                except Exception as err:
+                                    err_str = str(err)
+                                    if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                                        if attempt < max_retries - 1:
+                                            time.sleep(3)
+                                            continue
+                                    raise err
 
                             # Ekstrak Kode Python
                             raw_text = response.text
@@ -1405,7 +1420,7 @@ if menu_pilihan == "🤖 AI HR Assistant":
                     except Exception as e:
                         err_str = str(e)
                         if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                            st.error("⏳ Kuota API sedang penuh/terbatas. Tunggu sekitar 15–30 detik lalu ajukan pertanyaan lagi.")
+                            st.error("⏳ Server API Gemini sedang sangat padat. Silakan tunggu sekitar 10–15 detik sebelum menekan kirim kembali.")
                         else:
                             st.error(f"Gagal memproses pertanyaan: {err_str}")
                         st.caption("Coba formulasikan ulang pertanyaan kamu dengan kalimat yang lebih spesifik.")
