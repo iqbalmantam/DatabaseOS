@@ -1790,8 +1790,8 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 "Filter Bulan (Month):", options=months, default=months
             )
         with col_f2:
-            # Memasukkan semua project termasuk string kosong agar tidak ada yang terlewat
             projects = sorted(list(df_mc_clean["Project"].unique()))
+            # MENGGUNAKAN DEFAULT KESELURUHAN LIST AGAR TIDAK ADA PROJECT YANG TERLEWAT
             selected_project = st.multiselect(
                 "Filter Project:", options=projects, default=projects
             )
@@ -1801,6 +1801,8 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             filtered_mc = filtered_mc[
                 filtered_mc["Month"].str.strip().isin(selected_months)
             ]
+        
+        # JIKA USER TIDAK MEMILIH APA PUN DI FILTER PROJECT, OTOMATIS TAMPILKAN SEMUA DATA BULAN TERSEBUT
         if selected_project:
             filtered_mc = filtered_mc[
                 filtered_mc["Project"].isin(selected_project)
