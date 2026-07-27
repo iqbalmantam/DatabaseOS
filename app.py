@@ -1,5 +1,6 @@
 from datetime import date
 import io
+import re
 from fpdf import FPDF
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -1694,12 +1695,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 else:
                     new_df[target_col] = ""
             
-            # HAPUS BARIS KOSONG ATAU BARIS TOTAL DARI GOOGLE SHEETS
-            if "Name" in new_df.columns:
-                new_df = new_df[
-                    (new_df["Name"].astype(str).str.strip() != "") &
-                    (~new_df["Name"].astype(str).str.upper().str.contains("TOTAL|GRAND TOTAL|SUM|JUMLAH", na=False))
-                ]
+            # JANGAN filter baris berdasarkan kata 'TOTAL' pada Name agar baris yang mengandung nama mirip tidak terhapus
             if "Month" in new_df.columns:
                 new_df = new_df[new_df["Month"].astype(str).str.strip() != ""]
 
@@ -1790,8 +1786,11 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 "Filter Bulan (Month):", options=months, default=months
             )
         with col_f2:
-            projects = sorted(list(df_mc_clean["Project"].unique()))
-            # MENGGUNAKAN DEFAULT KESELURUHAN LIST AGAR TIDAK ADA PROJECT YANG TERLEWAT
+            projects = sorted([
+                x.strip()
+                for x in df_mc_clean["Project"].unique()
+                if x.strip() != "" and x.strip().lower() != "nan"
+            ])
             selected_project = st.multiselect(
                 "Filter Project:", options=projects, default=projects
             )
@@ -1801,42 +1800,45 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             filtered_mc = filtered_mc[
                 filtered_mc["Month"].str.strip().isin(selected_months)
             ]
-        
-        # JIKA USER TIDAK MEMILIH APA PUN DI FILTER PROJECT, OTOMATIS TAMPILKAN SEMUA DATA BULAN TERSEBUT
         if selected_project:
             filtered_mc = filtered_mc[
-                filtered_mc["Project"].isin(selected_project)
+                filtered_mc["Project"].str.strip().isin(selected_project)
             ]
 
-        # FUNGSI PARSER ANGKA YANG PRESISI MENCOCOKKAN GOOGLE SHEETS
+        # FUNGSI PARSER ANGKA YANG SANGAT ROBUST DAN PRESISI UNTUK GOOGLE SHEETS
         def to_num(series):
             def parse_val(val):
                 if pd.isna(val):
                     return 0.0
-                s = str(val).replace("Rp", "").replace(" ", "").strip()
+                s = str(val).strip()
                 if not s or s.lower() in ["nan", "none", "-", ""]:
                     return 0.0
 
-                if "," in s and "." in s:
-                    if s.rfind(",") > s.rfind("."):
-                        s = s.replace(".", "").replace(",", ".")
+                # Hilangkan simbol mata uang atau karakter non-numerik kecuali tanda minus, koma, titik
+                s_clean = re.sub(r'[^\d.,-]', '', s)
+                if not s_clean:
+                    return 0.0
+
+                if "," in s_clean and "." in s_clean:
+                    if s_clean.rfind(",") > s_clean.rfind("."):
+                        s_clean = s_clean.replace(".", "").replace(",", ".")
                     else:
-                        s = s.replace(",", "")
-                elif "," in s:
-                    parts = s.split(",")
-                    if len(parts[-1]) == 3:
-                        s = s.replace(",", "")
+                        s_clean = s_clean.replace(",", "")
+                elif "," in s_clean:
+                    parts = s_clean.split(",")
+                    if len(parts) == 2 and len(parts[1]) <= 2:
+                        s_clean = s_clean.replace(",", ".")
                     else:
-                        s = s.replace(",", ".")
-                elif "." in s:
-                    parts = s.split(".")
+                        s_clean = s_clean.replace(",", "")
+                elif "." in s_clean:
+                    parts = s_clean.split(".")
                     if len(parts) > 2:
-                        s = s.replace(".", "")
-                    elif len(parts[-1]) == 3:
-                        s = s.replace(".", "")
+                        s_clean = s_clean.replace(".", "")
+                    elif len(parts) == 2 and len(parts[1]) == 3:
+                        s_clean = s_clean.replace(".", "")
 
                 try:
-                    return float(s)
+                    return float(s_clean)
                 except ValueError:
                     return 0.0
 
@@ -1857,7 +1859,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             round(
                 to_num(filtered_mc["Total Payment Amount"])
                 .astype(float)
-                .sum()
+                    .sum()
             )
         )
 
