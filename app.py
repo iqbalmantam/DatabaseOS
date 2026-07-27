@@ -1769,8 +1769,21 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             use_container_width=True,
         )
     else:
-        # PEMBERSIHAN DATA UNTUK FILTER & KALKULASI
+        # PEMBERSIHAN DATA & BUANG BARIS TOTAL / GRAND TOTAL DARI EXCEL VENDOR
         df_mc_clean = df_mc.fillna("").astype(str)
+
+        if "Name" in df_mc_clean.columns:
+            df_mc_clean = df_mc_clean[
+                ~df_mc_clean["Name"]
+                .str.upper()
+                .str.contains("TOTAL|GRAND TOTAL|SUM|JUMLAH", na=False)
+            ]
+        if "Invoice No" in df_mc_clean.columns:
+            df_mc_clean = df_mc_clean[
+                ~df_mc_clean["Invoice No"]
+                .str.upper()
+                .str.contains("TOTAL|GRAND TOTAL|SUM|JUMLAH", na=False)
+            ]
 
         col_f1, col_f2 = st.columns(2)
         with col_f1:
