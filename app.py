@@ -1867,45 +1867,68 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         km3.metric("Total Manpower Cost", f"Rp {total_mp_cost:,}".replace(",", "."))
         km4.metric("Total Payment Amount", f"Rp {total_payment:,}".replace(",", "."))
 
-        # --- GRAFIK ANALISIS MANPOWER COST (BERBASIS PROJECT & BULAN) ---
-        with st.expander("📊 **Grafik Analisis & Sebaran Biaya Manpower**", expanded=True):
+        # --- GRAFIK ANALISIS MANPOWER COST (RAMAH UMUM & INTUITIF) ---
+        with st.expander(
+            "📊 **Dashboard Analytics & Sebaran Biaya Manpower**", expanded=True
+        ):
             df_chart = filtered_mc.copy()
-            df_chart["Parsed_Payment"] = to_num(df_chart["Total Payment Amount"])
+            df_chart["Parsed_Payment"] = to_num(
+                df_chart["Total Payment Amount"]
+            )
             df_chart["Parsed_Salary"] = to_num(df_chart["Total Salary"])
 
+            # Ringkasan Naratif Eksekutif Otomatis
+            if not df_chart.empty:
+                top_proj_name = (
+                    df_chart.groupby("Project")["Parsed_Payment"]
+                    .sum()
+                    .idxmax()
+                )
+                top_proj_val = (
+                    df_chart.groupby("Project")["Parsed_Payment"]
+                    .sum()
+                    .max()
+                )
+                formatted_top_val = (
+                    f"Rp {int(top_proj_val):,}".replace(",", ".")
+                )
+                st.info(
+                    f"💡 **Ringkasan Eksekutif:** Anggaran total payment terbesar"
+                    f" saat ini dipegang oleh project **{top_proj_name}**"
+                    f" dengan nilai sebesar **{formatted_top_val}**."
+                )
+
+            # Baris Atas: Tren per Bulan & Top 10 Project Total Payment (Bersih & Format .2s)
             gc1, gc2 = st.columns(2)
             with gc1:
-                trend_month = df_chart.groupby("Month")["Parsed_Payment"].sum().reset_index()
+                trend_month = (
+                    df_chart.groupby("Month")["Parsed_Payment"]
+                    .sum()
+                    .reset_index()
+                )
                 fig_trend = px.bar(
                     trend_month,
                     x="Month",
                     y="Parsed_Payment",
                     title="Total Payment Amount per Bulan",
                     text_auto=".2s",
-                    color="Parsed_Payment",
-                    color_continuous_scale="Blues"
+                    color="Month",
+                    color_discrete_sequence=["#1F4E79", "#2CA02C"],
                 )
-                fig_trend.update_layout(xaxis_title="Bulan", yaxis_title="Total Payment (Rp)")
+                fig_trend.update_layout(
+                    xaxis_title="Bulan",
+                    yaxis_title="Total Payment (Rp)",
+                    showlegend=False,
+                )
                 st.plotly_chart(fig_trend, use_container_width=True)
 
             with gc2:
-                top_proj = df_chart.groupby("Project")["Parsed_Payment"].sum().nlargest(10).reset_index()
-                fig_proj = px.bar(
-                    top_proj,
-                    x="Parsed_Payment",
-                    y="Project",
-                    orientation="h",
-                    title="Top 10 Project Berdasarkan Total Payment",
-                    text_auto=".2s",
-                    color="Parsed_Payment",
-                    color_continuous_scale="Viridis"
+                top_cost_proj = (
+                    df_chart.groupby("Project")["Parsed_Payment"]
+                    .sum()
+                    .nlargest(10)
+                    .reset_index()
                 )
-                fig_proj.update_layout(yaxis={"categoryorder": "total ascending"}, xaxis_title="Total Payment (Rp)", yaxis_title="Project")
-                st.plotly_chart(fig_proj, use_container_width=True)
-
-            gc3, gc4 = st.columns(2)
-            with gc3:
-                top_cost_proj = df_chart.groupby("Project")["Parsed_Payment"].sum().nlargest(10).reset_index()
                 fig_proj_cost = px.bar(
                     top_cost_proj,
                     x="Parsed_Payment",
@@ -1914,13 +1937,54 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     title="Top 10 Project Berdasarkan Total Payment",
                     text_auto=".2s",
                     color="Parsed_Payment",
-                    color_continuous_scale="Blues"
+                    color_continuous_scale="Viridis",
                 )
-                fig_proj_cost.update_layout(yaxis={"categoryorder": "total ascending"}, xaxis_title="Total Payment (Rp)", yaxis_title="Project")
+                fig_proj_cost.update_layout(
+                    yaxis={"categoryorder": "total ascending"},
+                    xaxis_title="Total Payment (Rp)",
+                    yaxis_title="Project",
+                )
                 st.plotly_chart(fig_proj_cost, use_container_width=True)
 
+            # Baris Bawah: Perbandingan Langsung (Compare) antar Bulan per Project & Headcount Teratas
+            gc3, gc4 = st.columns(2)
+            with gc3:
+                top_projects_list = (
+                    df_chart.groupby("Project")["Parsed_Payment"]
+                    .sum()
+                    .nlargest(8)
+                    .index
+                )
+                df_proj_month = (
+                    df_chart[df_chart["Project"].isin(top_projects_list)]
+                    .groupby(["Project", "Month"])["Parsed_Payment"]
+                    .sum()
+                    .reset_index()
+                )
+
+                fig_proj_month = px.bar(
+                    df_proj_month,
+                    x="Project",
+                    y="Parsed_Payment",
+                    color="Month",
+                    barmode="group",
+                    title="Perbandingan Biaya Project (Compare per Bulan)",
+                    text_auto=".2s",
+                )
+                fig_proj_month.update_layout(
+                    xaxis_title="Project",
+                    yaxis_title="Total Payment (Rp)",
+                    xaxis_tickangle=-25,
+                )
+                st.plotly_chart(fig_proj_month, use_container_width=True)
+
             with gc4:
-                top_hc = df_chart.groupby("Project")["Name"].count().nlargest(10).reset_index(name="Headcount")
+                top_hc = (
+                    df_chart.groupby("Project")["Name"]
+                    .count()
+                    .nlargest(10)
+                    .reset_index(name="Headcount")
+                )
                 fig_hc = px.bar(
                     top_hc,
                     x="Headcount",
@@ -1929,9 +1993,13 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     title="Top 10 Project Berdasarkan Jumlah Headcount",
                     text_auto=True,
                     color="Headcount",
-                    color_continuous_scale="Teal"
+                    color_continuous_scale="Teal",
                 )
-                fig_hc.update_layout(yaxis={"categoryorder": "total ascending"}, xaxis_title="Jumlah Karyawan", yaxis_title="Project")
+                fig_hc.update_layout(
+                    yaxis={"categoryorder": "total ascending"},
+                    xaxis_title="Jumlah Karyawan",
+                    yaxis_title="Project",
+                )
                 st.plotly_chart(fig_hc, use_container_width=True)
 
         # --- TABEL DEBUGGING UNTUK MENGECEK SELISIH ANGKA ---
