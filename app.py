@@ -1638,7 +1638,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
     MANPOWER_COST_HEADERS = [
         "Month",
         "Invoice No",
-        "Counted List",
         "Name",
         "Employee ID (by Vendor)",
         "Cost Center",
