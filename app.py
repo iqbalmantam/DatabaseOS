@@ -1795,6 +1795,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 for x in df_mc_clean["Project"].unique()
                 if x.strip() != "" and x.strip().lower() != "nan"
             ])
+            # Default menggunakan seluruh list projects agar tidak ada yang terlewat
             selected_project = st.multiselect(
                 "Filter Project:", options=projects, default=projects
             )
@@ -1868,10 +1869,48 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         km3.metric("Total Manpower Cost", f"Rp {total_mp_cost:,}".replace(",", "."))
         km4.metric("Total Payment Amount", f"Rp {total_payment:,}".replace(",", "."))
 
+        # --- GRAFIK ANALISIS MANPOWER COST ---
+        with st.expander("📊 **Grafik Analisis & Sebaran Biaya Manpower**", expanded=True):
+            df_chart = filtered_mc.copy()
+            df_chart["Parsed_Payment"] = to_num(df_chart["Total Payment Amount"])
+            df_chart["Parsed_Salary"] = to_num(df_chart["Total Salary"])
+
+            gc1, gc2 = st.columns(2)
+            with gc1:
+                # Grafik Tren Pembayaran per Bulan
+                trend_month = df_chart.groupby("Month")["Parsed_Payment"].sum().reset_index()
+                fig_trend = px.bar(
+                    trend_month,
+                    x="Month",
+                    y="Parsed_Payment",
+                    title="Total Payment Amount per Bulan",
+                    text_auto=".2s",
+                    color="Parsed_Payment",
+                    color_continuous_scale="Blues"
+                )
+                fig_trend.update_layout(xaxis_title="Bulan", yaxis_title="Total Payment (Rp)")
+                st.plotly_chart(fig_trend, use_container_width=True)
+
+            with gc2:
+                # Grafik Top 10 Project berdasarkan Total Payment
+                top_proj = df_chart.groupby("Project")["Parsed_Payment"].sum().nlargest(10).reset_index()
+                fig_proj = px.bar(
+                    top_proj,
+                    x="Parsed_Payment",
+                    y="Project",
+                    orientation="h",
+                    title="Top 10 Project Berdasarkan Total Payment",
+                    text_auto=".2s",
+                    color="Parsed_Payment",
+                    color_continuous_scale="Viridis"
+                )
+                fig_proj.update_layout(yaxis={"categoryorder": "total ascending"}, xaxis_title="Total Payment (Rp)", yaxis_title="Project")
+                st.plotly_chart(fig_proj, use_container_width=True)
+
         # --- TABEL DEBUGGING UNTUK MENGECEK SELISIH ANGKA ---
         with st.expander("🔍 Cek Detail / Baris Angka Total Payment Amount", expanded=False):
             st.caption("Gunakan tabel ini untuk memastikan apakah ada baris yang bernilai 0 atau salah format.")
-            debug_df = filtered_mc[["Month", "Invoice No", "Name", "Total Payment Amount"]].copy()
+            debug_df = filtered_mc[["Month", "Project", "Name", "Total Payment Amount"]].copy()
             debug_df["Parsed Numeric"] = to_num(filtered_mc["Total Payment Amount"])
             st.dataframe(debug_df, use_container_width=True)
 
