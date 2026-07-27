@@ -1693,16 +1693,20 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 else:
                     new_df[target_col] = ""
             
-            # HAPUS BARIS KOSONG ATAU BARIS TOTAL DARI GOOGLE SHEETS
+            # FILTER KETAT: HAPUS BARIS KOSONG ATAU BARIS TOTAL BAWAAN DARI GOOGLE SHEETS
             if "Name" in new_df.columns:
+                name_str = new_df["Name"].astype(str).str.strip()
                 new_df = new_df[
-                    (new_df["Name"].astype(str).str.strip() != "") &
-                    (~new_df["Name"].astype(str).str.upper().str.contains("TOTAL|GRAND TOTAL|SUM|JUMLAH", na=False))
+                    (name_str != "") &
+                    (name_str.str.lower() != "nan") &
+                    (~name_str.str.upper().str.contains("TOTAL|GRAND TOTAL|SUM|JUMLAH|SUBTOTAL", na=False))
                 ]
             if "Month" in new_df.columns:
+                month_str = new_df["Month"].astype(str).str.strip()
                 new_df = new_df[
-                    (new_df["Month"].astype(str).str.strip() != "") &
-                    (~new_df["Month"].astype(str).str.upper().str.contains("TOTAL|GRAND TOTAL|SUM|JUMLAH", na=False))
+                    (month_str != "") &
+                    (month_str.str.lower() != "nan") &
+                    (~month_str.str.upper().str.contains("TOTAL|GRAND TOTAL|SUM|JUMLAH|SUBTOTAL", na=False))
                 ]
 
             return new_df
@@ -1811,13 +1815,14 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 filtered_mc["Cost Center Name"].str.strip().isin(selected_cc)
             ]
 
-        # FUNGSI PARSER ANGKA YANG PRESISI MENCOCOKKAN GOOGLE SHEETS
+        # FUNGSI PARSER ANGKA YANG PRESISI & KONSISTEN DENGAN GOOGLE SHEETS
         def to_num(series):
             def parse_val(val):
                 if pd.isna(val):
                     return 0.0
-                s = str(val).replace("Rp", "").replace("IDR", "").strip()
-                if not s or s.lower() in ["nan", "none", "-", ""]:
+                
+                s = str(val).replace("Rp", "").replace("IDR", "").replace(" ", "").strip()
+                if not s or s.lower() in ["nan", "none", "-", "", "null"]:
                     return 0.0
 
                 if "," in s and "." in s:
@@ -1827,7 +1832,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                         s = s.replace(",", "")
                 elif "," in s:
                     parts = s.split(",")
-                    if len(parts[-1]) == 3 and len(parts) > 1:
+                    if len(parts[-1]) == 3 and len(parts) > 1 and "." not in s:
                         s = s.replace(",", "")
                     else:
                         s = s.replace(",", ".")
