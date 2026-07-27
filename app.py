@@ -1673,31 +1673,31 @@ if menu_pilihan == "💳 Manpower Cost Manager":
     ]
 
     def load_manpower_cost_data():
+        df_mc = None
+        # 1. Coba baca worksheet 'Manpower_Cost'
         try:
-            # Paksa ambil data tanpa caching
             df_mc = conn.read(worksheet="Manpower_Cost", ttl=0)
+        except Exception:
+            # 2. Fallback jika tab belum/tidak ditemukan
+            try:
+                df_mc = conn.read(ttl=0)
+            except Exception:
+                df_mc = None
 
-            if df_mc is not None and not df_mc.empty:
-                # Bersihkan spasi tak terlihat pada nama kolom Google Sheets
-                df_mc.columns = [str(c).strip() for c in df_mc.columns]
+        if df_mc is not None and isinstance(df_mc, pd.DataFrame) and not df_mc.empty:
+            df_mc.columns = [str(c).strip() for c in df_mc.columns]
+            col_map = {str(c).strip().lower(): c for c in df_mc.columns}
 
-                # Buat pemetaan nama kolom agar tidak sensitif huruf besar/kecil & spasi
-                col_map = {str(c).strip().lower(): c for c in df_mc.columns}
+            new_df = pd.DataFrame()
+            for target_col in MANPOWER_COST_HEADERS:
+                key = target_col.strip().lower()
+                if key in col_map:
+                    new_df[target_col] = df_mc[col_map[key]]
+                else:
+                    new_df[target_col] = ""
+            return new_df
 
-                # Buat DataFrame baru berdasarkan header standar
-                new_df = pd.DataFrame()
-                for target_col in MANPOWER_COST_HEADERS:
-                    key = target_col.strip().lower()
-                    if key in col_map:
-                        new_df[target_col] = df_mc[col_map[key]]
-                    else:
-                        new_df[target_col] = ""
-                return new_df
-
-            return pd.DataFrame(columns=MANPOWER_COST_HEADERS)
-        except Exception as e:
-            st.error(f"Gagal mengambil data dari Google Sheets: {e}")
-            return pd.DataFrame(columns=MANPOWER_COST_HEADERS)
+        return pd.DataFrame(columns=MANPOWER_COST_HEADERS)
 
     if "df_manpower_cost" not in st.session_state or st.sidebar.button(
         "🔄 Refresh Data Manpower Cost"
@@ -1802,17 +1802,41 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 filtered_mc["Cost Center Name"].str.strip().isin(selected_cc)
             ]
 
-        # FUNGSI KONVERSI ANGKA UNTUK HITUNG METRIC (AMAN FORMAT RUPIAH & USA)
+        # FUNGSI KONVERSI ANGKA SANGAT AMAN (MEMPERBAIKI TITIK KOMA GOOGLE SHEETS)
         def to_num(series):
-            return pd.to_numeric(
-                series.astype(str)
-                .str.replace("Rp", "", regex=False)
-                .str.replace(" ", "", regex=False)
-                .str.replace(".", "", regex=False)
-                .str.replace(",", ".", regex=False)
-                .str.strip(),
-                errors="coerce",
-            ).fillna(0)
+            def parse_val(val):
+                s = str(val).replace("Rp", "").replace(" ", "").strip()
+                if not s or s.lower() == "nan":
+                    return 0.0
+                
+                # Jika ada koma sebagai desimal di paling belakang (contoh: 5.000.000,00 atau 5000000,00)
+                if "," in s:
+                    parts = s.split(",")
+                    # Jika bagian setelah koma adalah 2 digit (sen/desimal)
+                    if len(parts[-1]) == 2 and parts[-1].isdigit():
+                        main_part = "".join(parts[:-1]).replace(".", "")
+                        return float(f"{main_part}.{parts[-1]}")
+                    else:
+                        # Jika koma digunakan sebagai pemisah ribuan versi US
+                        s = s.replace(",", "")
+                        
+                # Hapus titik jika dianggap pemisah ribuan
+                if "." in s:
+                    parts = s.split(".")
+                    # Jika bagian terakhir 2 digit (desimal US, contoh: 5000000.00)
+                    if len(parts[-1]) == 2 and parts[-1].isdigit():
+                        main_part = "".join(parts[:-1]).replace(",", "")
+                        return float(f"{main_part}.{parts[-1]}")
+                    else:
+                        # Jika titik adalah pemisah ribuan Indonesia (contoh: 5.000.000)
+                        s = s.replace(".", "")
+
+                try:
+                    return float(s)
+                except ValueError:
+                    return 0.0
+
+            return series.apply(parse_val)
 
         total_headcount = len(filtered_mc)
         total_salary = to_num(filtered_mc["Total Salary"]).sum()
