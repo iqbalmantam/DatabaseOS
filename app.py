@@ -1842,15 +1842,15 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             return series.apply(parse_val)
 
         total_headcount = len(filtered_mc)
-        total_salary = to_num(filtered_mc["Total Salary"]).sum()
-        total_mp_cost = to_num(filtered_mc["Total Manpower Cost"]).sum()
-        total_payment = to_num(filtered_mc["Total Payment Amount"]).sum()
+        total_salary = int(round(to_num(filtered_mc["Total Salary"]).sum()))
+        total_mp_cost = int(round(to_num(filtered_mc["Total Manpower Cost"]).sum()))
+        total_payment = int(round(to_num(filtered_mc["Total Payment Amount"]).sum()))
 
         km1, km2, km3, km4 = st.columns(4)
         km1.metric("Total Headcount", f"{total_headcount:,}")
-        km2.metric("Total Salary", f"Rp {total_salary:,.0f}")
-        km3.metric("Total Manpower Cost", f"Rp {total_mp_cost:,.0f}")
-        km4.metric("Total Payment Amount", f"Rp {total_payment:,.0f}")
+        km2.metric("Total Salary", f"Rp {total_salary:,}".replace(",", "."))
+        km3.metric("Total Manpower Cost", f"Rp {total_mp_cost:,}".replace(",", "."))
+        km4.metric("Total Payment Amount", f"Rp {total_payment:,}".replace(",", "."))
 
         st.subheader("📋 Data Manpower Cost Matrix")
         st.dataframe(filtered_mc, use_container_width=True, height=450)
