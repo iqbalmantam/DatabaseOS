@@ -1693,21 +1693,25 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 else:
                     new_df[target_col] = ""
             
-            # FILTER KETAT: HAPUS BARIS KOSONG ATAU BARIS TOTAL DARI GOOGLE SHEETS
-            if "Name" in new_df.columns:
-                name_str = new_df["Name"].astype(str).str.strip()
-                new_df = new_df[
-                    (name_str != "") &
-                    (name_str.str.lower() != "nan") &
-                    (~name_str.str.upper().str.contains("TOTAL|GRAND TOTAL|SUM|JUMLAH|SUBTOTAL", na=False))
-                ]
-            if "Month" in new_df.columns:
-                month_str = new_df["Month"].astype(str).str.strip()
-                new_df = new_df[
-                    (month_str != "") &
-                    (month_str.str.lower() != "nan") &
-                    (~month_str.str.upper().str.contains("TOTAL|GRAND TOTAL|SUM|JUMLAH|SUBTOTAL", na=False))
-                ]
+            # --- FILTER PEMBERSIHAN BARIS TOTAL EKSTREM ---
+            # Mengabaikan baris yang kolom Name atau Month-nya mengandung teks total / subtotal / grand total
+            for col_to_check in ["Name", "Month", "Invoice No"]:
+                if col_to_check in new_df.columns:
+                    val_series = new_df[col_to_check].astype(str).str.strip().str.upper()
+                    mask_valid = ~(
+                        val_series.str.contains("TOTAL|GRAND TOTAL|SUM|JUMLAH|SUBTOTAL|REKAP", na=False) |
+                        val_series.eq("") |
+                        val_series.eq("NAN") |
+                        val_series.eq("NONE")
+                    )
+                    # Pastikan jika kolom Name berisi angka atau kosong total, dibuang
+                    new_df = new_df[mask_valid | (new_df[col_to_check].astype(str).str.strip() != "")]
+
+            # Filter khusus baris kosong total
+            new_df = new_df[
+                (new_df["Name"].astype(str).str.strip() != "") & 
+                (new_df["Name"].astype(str).str.strip().str.lower() != "nan")
+            ]
 
             return new_df
 
@@ -1815,18 +1819,16 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 filtered_mc["Cost Center Name"].str.strip().isin(selected_cc)
             ]
 
-        # FUNGSI PARSER ANGKA YANG ROBUST (MENJAMIN KONVERSI FLOAT RIIL)
+        # FUNGSI PARSER ANGKA YANG PRESISI & KUAT
         def to_num(series):
             def parse_val(val):
                 if pd.isna(val):
                     return 0.0
                 
-                # Bersihkan string dari simbol mata uang & spasi
                 s = str(val).replace("Rp", "").replace("IDR", "").replace(" ", "").strip()
                 if not s or s.lower() in ["nan", "none", "-", "", "null"]:
                     return 0.0
 
-                # Tangani format Indonesia vs US
                 if "," in s and "." in s:
                     if s.rfind(",") > s.rfind("."):
                         s = s.replace(".", "").replace(",", ".")
@@ -1854,7 +1856,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
 
         total_headcount = len(filtered_mc)
         
-        # KONVERSI EKSPLISIT KE TIPE FLOAT SEBELUM MELAKUKAN SUM()
+        # PENJUMLAHAN AKURAT
         total_salary = int(
             round(to_num(filtered_mc["Total Salary"]).astype(float).sum())
         )
