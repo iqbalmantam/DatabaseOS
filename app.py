@@ -1815,7 +1815,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 filtered_mc["Cost Center Name"].str.strip().isin(selected_cc)
             ]
 
-        # FUNGSI KONVERSI ANGKA SUPER AKURAT (FORMAT INDONESIA & INTERNASIONAL)
+        # FUNGSI KONVERSI ANGKA PRESISI TINGGI (MENCOCOKKAN GOOGLE SHEETS)
         def to_num(series):
             def parse_val(val):
                 s = str(val).replace("Rp", "").replace(" ", "").strip()
@@ -1846,9 +1846,24 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             return series.apply(parse_val)
 
         total_headcount = len(filtered_mc)
-        total_salary = int(round(to_num(filtered_mc["Total Salary"]).sum()))
-        total_mp_cost = int(round(to_num(filtered_mc["Total Manpower Cost"]).sum()))
-        total_payment = int(round(to_num(filtered_mc["Total Payment Amount"]).sum()))
+        # Menggunakan round presisi 0 agar nilai total akurat seperti Google Sheets
+        total_salary = int(
+            round(to_num(filtered_mc["Total Salary"]).astype(float).sum())
+        )
+        total_mp_cost = int(
+            round(
+                to_num(filtered_mc["Total Manpower Cost"])
+                .astype(float)
+                .sum()
+            )
+        )
+        total_payment = int(
+            round(
+                to_num(filtered_mc["Total Payment Amount"])
+                .astype(float)
+                .sum()
+            )
+        )
 
         km1, km2, km3, km4 = st.columns(4)
         km1.metric("Total Headcount", f"{total_headcount:,}")
