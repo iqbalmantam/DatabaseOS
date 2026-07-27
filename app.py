@@ -852,7 +852,7 @@ if menu_pilihan == "👥 Master Data Karyawan":
                         line_shape="spline",
                     )
                     fig_trend.update_traces(
-                        line_color="#1F4E79", line_width=3, marker_size=8, textangle=0
+                        line_color="#1F4E79", line_width=3, marker_size=8
                     )
                     st.plotly_chart(fig_trend, use_container_width=True)
                 else:
