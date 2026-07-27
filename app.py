@@ -1700,7 +1700,10 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     (~new_df["Name"].astype(str).str.upper().str.contains("TOTAL|GRAND TOTAL|SUM|JUMLAH", na=False))
                 ]
             if "Month" in new_df.columns:
-                new_df = new_df[new_df["Month"].astype(str).str.strip() != ""]
+                new_df = new_df[
+                    (new_df["Month"].astype(str).str.strip() != "") &
+                    (~new_df["Month"].astype(str).str.upper().str.contains("TOTAL|GRAND TOTAL|SUM|JUMLAH", na=False))
+                ]
 
             return new_df
 
@@ -1813,7 +1816,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             def parse_val(val):
                 if pd.isna(val):
                     return 0.0
-                s = str(val).replace("Rp", "").replace(" ", "").strip()
+                s = str(val).replace("Rp", "").replace("IDR", "").strip()
                 if not s or s.lower() in ["nan", "none", "-", ""]:
                     return 0.0
 
@@ -1824,7 +1827,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                         s = s.replace(",", "")
                 elif "," in s:
                     parts = s.split(",")
-                    if len(parts[-1]) == 3:
+                    if len(parts[-1]) == 3 and len(parts) > 1:
                         s = s.replace(",", "")
                     else:
                         s = s.replace(",", ".")
@@ -1832,7 +1835,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     parts = s.split(".")
                     if len(parts) > 2:
                         s = s.replace(".", "")
-                    elif len(parts[-1]) == 3:
+                    elif len(parts[-1]) == 3 and len(parts) > 1:
                         s = s.replace(".", "")
 
                 try:
