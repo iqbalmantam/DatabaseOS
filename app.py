@@ -1790,12 +1790,8 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 "Filter Bulan (Month):", options=months, default=months
             )
         with col_f2:
-            projects = sorted([
-                x.strip()
-                for x in df_mc_clean["Project"].unique()
-                if x.strip() != "" and x.strip().lower() != "nan"
-            ])
-            # Default menggunakan seluruh list projects agar tidak ada yang terlewat
+            # Memasukkan semua project termasuk string kosong agar tidak ada yang terlewat
+            projects = sorted(list(df_mc_clean["Project"].unique()))
             selected_project = st.multiselect(
                 "Filter Project:", options=projects, default=projects
             )
@@ -1807,7 +1803,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             ]
         if selected_project:
             filtered_mc = filtered_mc[
-                filtered_mc["Project"].str.strip().isin(selected_project)
+                filtered_mc["Project"].isin(selected_project)
             ]
 
         # FUNGSI PARSER ANGKA YANG PRESISI MENCOCOKKAN GOOGLE SHEETS
@@ -1877,7 +1873,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
 
             gc1, gc2 = st.columns(2)
             with gc1:
-                # Grafik Tren Pembayaran per Bulan
                 trend_month = df_chart.groupby("Month")["Parsed_Payment"].sum().reset_index()
                 fig_trend = px.bar(
                     trend_month,
@@ -1892,7 +1887,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 st.plotly_chart(fig_trend, use_container_width=True)
 
             with gc2:
-                # Grafik Top 10 Project berdasarkan Total Payment
                 top_proj = df_chart.groupby("Project")["Parsed_Payment"].sum().nlargest(10).reset_index()
                 fig_proj = px.bar(
                     top_proj,
