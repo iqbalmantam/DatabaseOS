@@ -1644,7 +1644,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         "Name",
         "Employee ID (by Vendor)",
         "Cost Center Name",
-        "Department",
         "Work Location",
         "Job Position",
         "Type",
