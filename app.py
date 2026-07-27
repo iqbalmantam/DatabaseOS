@@ -1898,7 +1898,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     f" dengan nilai sebesar **{formatted_top_val}**."
                 )
 
-            # Baris Atas: Tren per Bulan & Top 10 Project Total Payment (Bersih & Format .2s)
+            # Baris Atas: Tren per Bulan (Diurutkan Kronologis dari Bulan Awal) & Top 10 Project
             gc1, gc2 = st.columns(2)
             with gc1:
                 trend_month = (
@@ -1906,6 +1906,14 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     .sum()
                     .reset_index()
                 )
+                # Konversi ke format datetime agar bisa diurutkan secara kronologis (dari yang terlama ke terbaru)
+                trend_month["Month_Dt"] = pd.to_datetime(
+                    trend_month["Month"], errors="coerce"
+                )
+                trend_month = trend_month.sort_values(
+                    by=["Month_Dt", "Month"], ascending=[True, True]
+                )
+
                 fig_trend = px.bar(
                     trend_month,
                     x="Month",
@@ -1913,12 +1921,13 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     title="Total Payment Amount per Bulan",
                     text_auto=".2s",
                     color="Month",
-                    color_discrete_sequence=["#1F4E79", "#2CA02C"],
+                    color_discrete_sequence=["#2CA02C", "#1F4E79"],
                 )
                 fig_trend.update_layout(
                     xaxis_title="Bulan",
                     yaxis_title="Total Payment (Rp)",
                     showlegend=False,
+                    xaxis={"categoryorder": "array", "categoryarray": trend_month["Month"].tolist()}
                 )
                 st.plotly_chart(fig_trend, use_container_width=True)
 
