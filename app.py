@@ -1343,8 +1343,9 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                             "Tidak Hadir": "#E78AC3",
                         },
                     )
+                    # PIE CHART TIDAK PAKAI textangle
                     fig_status.update_traces(
-                        textposition="inside", textinfo="percent+label", textangle=0
+                        textposition="inside", textinfo="percent+label"
                     )
                     st.plotly_chart(fig_status, use_container_width=True)
 
