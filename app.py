@@ -1674,11 +1674,9 @@ if menu_pilihan == "💳 Manpower Cost Manager":
 
     def load_manpower_cost_data():
         df_mc = None
-        # 1. Coba baca worksheet 'Manpower_Cost'
         try:
             df_mc = conn.read(worksheet="Manpower_Cost", ttl=0)
         except Exception:
-            # 2. Fallback jika tab belum/tidak ditemukan
             try:
                 df_mc = conn.read(ttl=0)
             except Exception:
@@ -1695,6 +1693,16 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     new_df[target_col] = df_mc[col_map[key]]
                 else:
                     new_df[target_col] = ""
+            
+            # HAPUS BARIS KOSONG ATAU BARIS TOTAL DARI GOOGLE SHEETS
+            if "Name" in new_df.columns:
+                new_df = new_df[
+                    (new_df["Name"].astype(str).str.strip() != "") &
+                    (~new_df["Name"].astype(str).str.upper().str.contains("TOTAL|GRAND TOTAL|SUM|JUMLAH", na=False))
+                ]
+            if "Month" in new_df.columns:
+                new_df = new_df[new_df["Month"].astype(str).str.strip() != ""]
+
             return new_df
 
         return pd.DataFrame(columns=MANPOWER_COST_HEADERS)
@@ -1769,21 +1777,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             use_container_width=True,
         )
     else:
-        # PEMBERSIHAN DATA & BUANG BARIS TOTAL / GRAND TOTAL DARI EXCEL VENDOR
         df_mc_clean = df_mc.fillna("").astype(str)
-
-        if "Name" in df_mc_clean.columns:
-            df_mc_clean = df_mc_clean[
-                ~df_mc_clean["Name"]
-                .str.upper()
-                .str.contains("TOTAL|GRAND TOTAL|SUM|JUMLAH", na=False)
-            ]
-        if "Invoice No" in df_mc_clean.columns:
-            df_mc_clean = df_mc_clean[
-                ~df_mc_clean["Invoice No"]
-                .str.upper()
-                .str.contains("TOTAL|GRAND TOTAL|SUM|JUMLAH", na=False)
-            ]
 
         col_f1, col_f2 = st.columns(2)
         with col_f1:
@@ -1815,8 +1809,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 filtered_mc["Cost Center Name"].str.strip().isin(selected_cc)
             ]
 
-
-        # FUNGSI PARSER ANGKA YANG 100% AMAN TERHADAP FORMAT RIBUAN TITIK GANDA/BANYAK
+        # FUNGSI PARSER ANGKA YANG PRESISI MENCOCOKKAN GOOGLE SHEETS
         def to_num(series):
             def parse_val(val):
                 if pd.isna(val):
@@ -1825,7 +1818,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 if not s or s.lower() in ["nan", "none", "-", ""]:
                     return 0.0
 
-                # Tangani format ribuan dengan titik atau koma (standar Indonesia/Excel)
                 if "," in s and "." in s:
                     if s.rfind(",") > s.rfind("."):
                         s = s.replace(".", "").replace(",", ".")
@@ -1839,7 +1831,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                         s = s.replace(",", ".")
                 elif "." in s:
                     parts = s.split(".")
-                    # Jika ada banyak titik (misal 2.356.852), hapus semua titik kecuali mungkin desimal terakhir
                     if len(parts) > 2:
                         s = s.replace(".", "")
                     elif len(parts[-1]) == 3:
@@ -1851,7 +1842,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     return 0.0
 
             return series.apply(parse_val)
-
 
         total_headcount = len(filtered_mc)
         total_salary = int(
