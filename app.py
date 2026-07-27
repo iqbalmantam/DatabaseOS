@@ -1774,7 +1774,8 @@ if menu_pilihan == "💳 Manpower Cost Manager":
     else:
         df_mc_clean = df_mc.fillna("").astype(str)
 
-        col_f1, col_f2 = st.columns(2)
+        # Filter Bulan, Project, dan Work Location
+        col_f1, col_f2, col_f3 = st.columns(3)
         with col_f1:
             months = sorted([
                 x.strip()
@@ -1793,6 +1794,15 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             selected_project = st.multiselect(
                 "Filter Project:", options=projects, default=projects
             )
+        with col_f3:
+            locations = sorted([
+                x.strip()
+                for x in df_mc_clean["Work Location"].unique()
+                if x.strip() != "" and x.strip().lower() != "nan"
+            ])
+            selected_location = st.multiselect(
+                "Filter Work Location:", options=locations, default=locations
+            )
 
         filtered_mc = df_mc_clean.copy()
         if selected_months:
@@ -1802,6 +1812,10 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         if selected_project:
             filtered_mc = filtered_mc[
                 filtered_mc["Project"].str.strip().isin(selected_project)
+            ]
+        if selected_location:
+            filtered_mc = filtered_mc[
+                filtered_mc["Work Location"].str.strip().isin(selected_location)
             ]
 
         # FUNGSI PARSER ANGKA YANG SANGAT ROBUST DAN PRESISI UNTUK GOOGLE SHEETS
