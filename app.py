@@ -1695,7 +1695,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 else:
                     new_df[target_col] = ""
             
-            # JANGAN filter baris berdasarkan kata 'TOTAL' pada Name agar baris yang mengandung nama mirip tidak terhapus
             if "Month" in new_df.columns:
                 new_df = new_df[new_df["Month"].astype(str).str.strip() != ""]
 
@@ -1814,7 +1813,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 if not s or s.lower() in ["nan", "none", "-", ""]:
                     return 0.0
 
-                # Hilangkan simbol mata uang atau karakter non-numerik kecuali tanda minus, koma, titik
                 s_clean = re.sub(r'[^\d.,-]', '', s)
                 if not s_clean:
                     return 0.0
@@ -1859,7 +1857,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             round(
                 to_num(filtered_mc["Total Payment Amount"])
                 .astype(float)
-                    .sum()
+                .sum()
             )
         )
 
@@ -1869,11 +1867,13 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         km3.metric("Total Manpower Cost", f"Rp {total_mp_cost:,}".replace(",", "."))
         km4.metric("Total Payment Amount", f"Rp {total_payment:,}".replace(",", "."))
 
-        # --- GRAFIK ANALISIS MANPOWER COST ---
+        # --- GRAFIK ANALISIS MANPOWER COST YANG DIPERLUAS ---
         with st.expander("📊 **Grafik Analisis & Sebaran Biaya Manpower**", expanded=True):
             df_chart = filtered_mc.copy()
             df_chart["Parsed_Payment"] = to_num(df_chart["Total Payment Amount"])
             df_chart["Parsed_Salary"] = to_num(df_chart["Total Salary"])
+            df_chart["Parsed_BPJS"] = to_num(df_chart["BPJS"])
+            df_chart["Parsed_Mgmt_Fee"] = to_num(df_chart["Management Fee"])
 
             gc1, gc2 = st.columns(2)
             with gc1:
@@ -1904,6 +1904,41 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 )
                 fig_proj.update_layout(yaxis={"categoryorder": "total ascending"}, xaxis_title="Total Payment (Rp)", yaxis_title="Project")
                 st.plotly_chart(fig_proj, use_container_width=True)
+
+            # Tambahan Grafik Komposisi Komponen Biaya & Headcount per Project
+            gc3, gc4 = st.columns(2)
+            with gc3:
+                cost_components = pd.DataFrame({
+                    "Komponen": ["Total Salary", "BPJS", "Management Fee"],
+                    "Jumlah (Rp)": [
+                        df_chart["Parsed_Salary"].sum(),
+                        df_chart["Parsed_BPJS"].sum(),
+                        df_chart["Parsed_Mgmt_Fee"].sum()
+                    ]
+                })
+                fig_comp = px.pie(
+                    cost_components,
+                    names="Komponen",
+                    values="Jumlah (Rp)",
+                    title="Komposisi Komponen Biaya Utama",
+                    hole=0.4
+                )
+                st.plotly_chart(fig_comp, use_container_width=True)
+
+            with gc4:
+                top_hc = df_chart.groupby("Project")["Name"].count().nlargest(10).reset_index(name="Headcount")
+                fig_hc = px.bar(
+                    top_hc,
+                    x="Headcount",
+                    y="Project",
+                    orientation="h",
+                    title="Top 10 Project Berdasarkan Jumlah Headcount",
+                    text_auto=True,
+                    color="Headcount",
+                    color_continuous_scale="Teal"
+                )
+                fig_hc.update_layout(yaxis={"categoryorder": "total ascending"}, xaxis_title="Jumlah Karyawan", yaxis_title="Project")
+                st.plotly_chart(fig_hc, use_container_width=True)
 
         # --- TABEL DEBUGGING UNTUK MENGECEK SELISIH ANGKA ---
         with st.expander("🔍 Cek Detail / Baris Angka Total Payment Amount", expanded=False):
