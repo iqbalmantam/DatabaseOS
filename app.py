@@ -1802,33 +1802,36 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 filtered_mc["Cost Center Name"].str.strip().isin(selected_cc)
             ]
 
-        # FUNGSI KONVERSI ANGKA SANGAT AMAN (MEMPERBAIKI TITIK KOMA GOOGLE SHEETS)
+        # FUNGSI KONVERSI ANGKA SUPER AKURAT (FORMAT INDONESIA & INTERNASIONAL)
         def to_num(series):
             def parse_val(val):
                 s = str(val).replace("Rp", "").replace(" ", "").strip()
-                if not s or s.lower() == "nan":
+                if not s or s.lower() in ["nan", "none", "-"]:
                     return 0.0
-                
-                # Jika ada koma sebagai desimal di paling belakang (contoh: 5.000.000,00 atau 5000000,00)
-                if "," in s:
-                    parts = s.split(",")
-                    # Jika bagian setelah koma adalah 2 digit (sen/desimal)
-                    if len(parts[-1]) == 2 and parts[-1].isdigit():
-                        main_part = "".join(parts[:-1]).replace(".", "")
-                        return float(f"{main_part}.{parts[-1]}")
+
+                # Kasus 1: Mengandung koma DAN titik (misal 6.933.228,00 atau 6,933,228.00)
+                if "," in s and "." in s:
+                    # Cek simbol mana yang muncul paling belakang
+                    if s.rfind(",") > s.rfind("."):
+                        # Format ID: Koma adalah desimal, Titik adalah ribuan
+                        s = s.replace(".", "").replace(",", ".")
                     else:
-                        # Jika koma digunakan sebagai pemisah ribuan versi US
+                        # Format US: Titik adalah desimal, Koma adalah ribuan
                         s = s.replace(",", "")
-                        
-                # Hapus titik jika dianggap pemisah ribuan
-                if "." in s:
-                    parts = s.split(".")
-                    # Jika bagian terakhir 2 digit (desimal US, contoh: 5000000.00)
-                    if len(parts[-1]) == 2 and parts[-1].isdigit():
-                        main_part = "".join(parts[:-1]).replace(",", "")
-                        return float(f"{main_part}.{parts[-1]}")
+                # Kasus 2: Hanya mengandung Koma
+                elif "," in s:
+                    parts = s.split(",")
+                    # Jika angka setelah koma persis 3 digit -> Pemisah ribuan (contoh: 6,933,228)
+                    if len(parts[-1]) == 3:
+                        s = s.replace(",", "")
                     else:
-                        # Jika titik adalah pemisah ribuan Indonesia (contoh: 5.000.000)
+                        # Desimal Indonesia (contoh: 6933228,00)
+                        s = s.replace(",", ".")
+                # Kasus 3: Hanya mengandung Titik
+                elif "." in s:
+                    parts = s.split(".")
+                    # Jika angka setelah titik persis 3 digit -> Pemisah ribuan (contoh: 6.933.228)
+                    if len(parts[-1]) == 3:
                         s = s.replace(".", "")
 
                 try:
