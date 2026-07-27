@@ -1809,28 +1809,19 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 if not s or s.lower() in ["nan", "none", "-"]:
                     return 0.0
 
-                # Kasus 1: Mengandung koma DAN titik (misal 6.933.228,00 atau 6,933,228.00)
                 if "," in s and "." in s:
-                    # Cek simbol mana yang muncul paling belakang
                     if s.rfind(",") > s.rfind("."):
-                        # Format ID: Koma adalah desimal, Titik adalah ribuan
                         s = s.replace(".", "").replace(",", ".")
                     else:
-                        # Format US: Titik adalah desimal, Koma adalah ribuan
                         s = s.replace(",", "")
-                # Kasus 2: Hanya mengandung Koma
                 elif "," in s:
                     parts = s.split(",")
-                    # Jika angka setelah koma persis 3 digit -> Pemisah ribuan (contoh: 6,933,228)
                     if len(parts[-1]) == 3:
                         s = s.replace(",", "")
                     else:
-                        # Desimal Indonesia (contoh: 6933228,00)
                         s = s.replace(",", ".")
-                # Kasus 3: Hanya mengandung Titik
                 elif "." in s:
                     parts = s.split(".")
-                    # Jika angka setelah titik persis 3 digit -> Pemisah ribuan (contoh: 6.933.228)
                     if len(parts[-1]) == 3:
                         s = s.replace(".", "")
 
@@ -1852,8 +1843,19 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         km3.metric("Total Manpower Cost", f"Rp {total_mp_cost:,}".replace(",", "."))
         km4.metric("Total Payment Amount", f"Rp {total_payment:,}".replace(",", "."))
 
+        # BERSIHKAN DESIMAL TAMPILAN TABEL MATRIX (.0)
+        display_matrix = filtered_mc.copy()
+        for col in display_matrix.columns:
+            display_matrix[col] = (
+                display_matrix[col]
+                .astype(str)
+                .str.replace(r"\.0$", "", regex=True)
+                .str.replace(r"^nan$", "", regex=True, case=False)
+                .str.replace(r"^none$", "", regex=True, case=False)
+            )
+
         st.subheader("📋 Data Manpower Cost Matrix")
-        st.dataframe(filtered_mc, use_container_width=True, height=450)
+        st.dataframe(display_matrix, use_container_width=True, height=450)
 
         st.download_button(
             label="📊 Download Data Manpower Cost (CSV)",
