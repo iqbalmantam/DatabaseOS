@@ -1815,13 +1815,17 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 filtered_mc["Cost Center Name"].str.strip().isin(selected_cc)
             ]
 
-        # FUNGSI KONVERSI ANGKA PRESISI TINGGI (MENCOCOKKAN GOOGLE SHEETS)
+
+        # FUNGSI PARSER ANGKA YANG 100% AMAN TERHADAP FORMAT RIBUAN TITIK GANDA/BANYAK
         def to_num(series):
             def parse_val(val):
+                if pd.isna(val):
+                    return 0.0
                 s = str(val).replace("Rp", "").replace(" ", "").strip()
-                if not s or s.lower() in ["nan", "none", "-"]:
+                if not s or s.lower() in ["nan", "none", "-", ""]:
                     return 0.0
 
+                # Tangani format ribuan dengan titik atau koma (standar Indonesia/Excel)
                 if "," in s and "." in s:
                     if s.rfind(",") > s.rfind("."):
                         s = s.replace(".", "").replace(",", ".")
@@ -1835,7 +1839,10 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                         s = s.replace(",", ".")
                 elif "." in s:
                     parts = s.split(".")
-                    if len(parts[-1]) == 3:
+                    # Jika ada banyak titik (misal 2.356.852), hapus semua titik kecuali mungkin desimal terakhir
+                    if len(parts) > 2:
+                        s = s.replace(".", "")
+                    elif len(parts[-1]) == 3:
                         s = s.replace(".", "")
 
                 try:
@@ -1845,8 +1852,8 @@ if menu_pilihan == "💳 Manpower Cost Manager":
 
             return series.apply(parse_val)
 
+
         total_headcount = len(filtered_mc)
-        # Menggunakan round presisi 0 agar nilai total akurat seperti Google Sheets
         total_salary = int(
             round(to_num(filtered_mc["Total Salary"]).astype(float).sum())
         )
