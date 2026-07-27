@@ -1969,28 +1969,27 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 )
                 st.plotly_chart(fig_proj_cost, use_container_width=True)
 
-            # Baris Tengah: Grafik Overtime Berdasarkan Work Location & Headcount Teratas
+            # Baris Tengah: Perbandingan Overtime antar Bulan per Work Location & Headcount Teratas
             gc_ot, gc4 = st.columns(2)
             with gc_ot:
-                df_ot_loc = (
-                    df_chart.groupby("Work Location")["Parsed_Overtime"]
+                df_ot_loc_month = (
+                    df_chart.groupby(["Work Location", "Month"])["Parsed_Overtime"]
                     .sum()
                     .reset_index()
                 )
                 fig_ot_loc = px.bar(
-                    df_ot_loc,
-                    x="Parsed_Overtime",
-                    y="Work Location",
-                    orientation="h",
-                    title="Total Overtime Berdasarkan Work Location",
+                    df_ot_loc_month,
+                    x="Work Location",
+                    y="Parsed_Overtime",
+                    color="Month",
+                    barmode="group",
+                    title="Perbandingan Overtime Work Location (Compare per Bulan)",
                     text_auto=".2s",
-                    color="Parsed_Overtime",
-                    color_continuous_scale="Oranges",
                 )
                 fig_ot_loc.update_layout(
-                    yaxis={"categoryorder": "total ascending"},
-                    xaxis_title="Total Overtime (Rp)",
-                    yaxis_title="Work Location",
+                    xaxis_title="Work Location",
+                    yaxis_title="Total Overtime (Rp)",
+                    xaxis_tickangle=-25,
                 )
                 st.plotly_chart(fig_ot_loc, use_container_width=True)
 
