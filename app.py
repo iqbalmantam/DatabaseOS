@@ -1843,16 +1843,40 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         km3.metric("Total Manpower Cost", f"Rp {total_mp_cost:,}".replace(",", "."))
         km4.metric("Total Payment Amount", f"Rp {total_payment:,}".replace(",", "."))
 
-        # BERSIHKAN DESIMAL TAMPILAN TABEL MATRIX (.0)
+        # FORMAT KOLOM ANGKA DENGAN PEMISAH RIBUAN TITIK (.)
         display_matrix = filtered_mc.copy()
-        for col in display_matrix.columns:
-            display_matrix[col] = (
-                display_matrix[col]
-                .astype(str)
-                .str.replace(r"\.0$", "", regex=True)
-                .str.replace(r"^nan$", "", regex=True, case=False)
-                .str.replace(r"^none$", "", regex=True, case=False)
-            )
+        financial_cols = [
+            "Basic Salary",
+            "Meals & Transp",
+            "Overtime",
+            "Position",
+            "Skill",
+            "Other",
+            "Shortage",
+            "Deduction",
+            "Total Salary",
+            "BPJS",
+            "Management Fee",
+            "Total Manpower Cost",
+            "Grand Total",
+            "CJI",
+            "KHQ Report",
+            "PPN",
+            "PPH23",
+            "Total Payment Amount",
+        ]
+
+        for col in financial_cols:
+            if col in display_matrix.columns:
+                display_matrix[col] = display_matrix[col].apply(
+                    lambda x: (
+                        f"{int(round(to_num(pd.Series([x])).iloc[0])):,}".replace(
+                            ",", "."
+                        )
+                        if str(x).strip() not in ["", "nan", "none", "-"]
+                        else ""
+                    )
+                )
 
         st.subheader("📋 Data Manpower Cost Matrix")
         st.dataframe(display_matrix, use_container_width=True, height=450)
