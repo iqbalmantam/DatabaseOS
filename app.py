@@ -1644,6 +1644,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         "Name",
         "Employee ID (by Vendor)",
         "Cost Center Name",
+        "Department",
         "Work Location",
         "Job Position",
         "Type",
@@ -1693,25 +1694,14 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 else:
                     new_df[target_col] = ""
             
-            # --- FILTER PEMBERSIHAN BARIS TOTAL EKSTREM ---
-            # Mengabaikan baris yang kolom Name atau Month-nya mengandung teks total / subtotal / grand total
-            for col_to_check in ["Name", "Month", "Invoice No"]:
-                if col_to_check in new_df.columns:
-                    val_series = new_df[col_to_check].astype(str).str.strip().str.upper()
-                    mask_valid = ~(
-                        val_series.str.contains("TOTAL|GRAND TOTAL|SUM|JUMLAH|SUBTOTAL|REKAP", na=False) |
-                        val_series.eq("") |
-                        val_series.eq("NAN") |
-                        val_series.eq("NONE")
-                    )
-                    # Pastikan jika kolom Name berisi angka atau kosong total, dibuang
-                    new_df = new_df[mask_valid | (new_df[col_to_check].astype(str).str.strip() != "")]
-
-            # Filter khusus baris kosong total
-            new_df = new_df[
-                (new_df["Name"].astype(str).str.strip() != "") & 
-                (new_df["Name"].astype(str).str.strip().str.lower() != "nan")
-            ]
+            # HAPUS BARIS KOSONG ATAU BARIS TOTAL DARI GOOGLE SHEETS
+            if "Name" in new_df.columns:
+                new_df = new_df[
+                    (new_df["Name"].astype(str).str.strip() != "") &
+                    (~new_df["Name"].astype(str).str.upper().str.contains("TOTAL|GRAND TOTAL|SUM|JUMLAH", na=False))
+                ]
+            if "Month" in new_df.columns:
+                new_df = new_df[new_df["Month"].astype(str).str.strip() != ""]
 
             return new_df
 
@@ -1800,13 +1790,13 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 "Filter Bulan (Month):", options=months, default=months
             )
         with col_f2:
-            cost_centers = sorted([
+            projects = sorted([
                 x.strip()
-                for x in df_mc_clean["Cost Center Name"].unique()
+                for x in df_mc_clean["Project"].unique()
                 if x.strip() != "" and x.strip().lower() != "nan"
             ])
-            selected_cc = st.multiselect(
-                "Filter Cost Center:", options=cost_centers, default=cost_centers
+            selected_project = st.multiselect(
+                "Filter Project:", options=projects, default=projects
             )
 
         filtered_mc = df_mc_clean.copy()
@@ -1814,19 +1804,18 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             filtered_mc = filtered_mc[
                 filtered_mc["Month"].str.strip().isin(selected_months)
             ]
-        if selected_cc:
+        if selected_project:
             filtered_mc = filtered_mc[
-                filtered_mc["Cost Center Name"].str.strip().isin(selected_cc)
+                filtered_mc["Project"].str.strip().isin(selected_project)
             ]
 
-        # FUNGSI PARSER ANGKA YANG PRESISI & KUAT
+        # FUNGSI PARSER ANGKA YANG PRESISI MENCOCOKKAN GOOGLE SHEETS
         def to_num(series):
             def parse_val(val):
                 if pd.isna(val):
                     return 0.0
-                
-                s = str(val).replace("Rp", "").replace("IDR", "").replace(" ", "").strip()
-                if not s or s.lower() in ["nan", "none", "-", "", "null"]:
+                s = str(val).replace("Rp", "").replace(" ", "").strip()
+                if not s or s.lower() in ["nan", "none", "-", ""]:
                     return 0.0
 
                 if "," in s and "." in s:
@@ -1836,7 +1825,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                         s = s.replace(",", "")
                 elif "," in s:
                     parts = s.split(",")
-                    if len(parts[-1]) == 3 and len(parts) > 1 and "." not in s:
+                    if len(parts[-1]) == 3:
                         s = s.replace(",", "")
                     else:
                         s = s.replace(",", ".")
@@ -1844,7 +1833,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     parts = s.split(".")
                     if len(parts) > 2:
                         s = s.replace(".", "")
-                    elif len(parts[-1]) == 3 and len(parts) > 1:
+                    elif len(parts[-1]) == 3:
                         s = s.replace(".", "")
 
                 try:
@@ -1855,8 +1844,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             return series.apply(parse_val)
 
         total_headcount = len(filtered_mc)
-        
-        # PENJUMLAHAN AKURAT
         total_salary = int(
             round(to_num(filtered_mc["Total Salary"]).astype(float).sum())
         )
