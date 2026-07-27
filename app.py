@@ -1868,6 +1868,13 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         km3.metric("Total Manpower Cost", f"Rp {total_mp_cost:,}".replace(",", "."))
         km4.metric("Total Payment Amount", f"Rp {total_payment:,}".replace(",", "."))
 
+        # --- TABEL DEBUGGING UNTUK MENGECEK SELISIH ANGKA ---
+        with st.expander("🔍 Cek Detail / Baris Angka Total Payment Amount", expanded=False):
+            st.caption("Gunakan tabel ini untuk memastikan apakah ada baris yang bernilai 0 atau salah format.")
+            debug_df = filtered_mc[["Month", "Invoice No", "Name", "Total Payment Amount"]].copy()
+            debug_df["Parsed Numeric"] = to_num(filtered_mc["Total Payment Amount"])
+            st.dataframe(debug_df, use_container_width=True)
+
         # FORMAT KOLOM ANGKA DENGAN PEMISAH RIBUAN TITIK (.)
         display_matrix = filtered_mc.copy()
         financial_cols = [
