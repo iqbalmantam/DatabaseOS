@@ -1774,7 +1774,8 @@ if menu_pilihan == "💳 Manpower Cost Manager":
     else:
         df_mc_clean = df_mc.fillna("").astype(str)
 
-        col_f1, col_f2 = st.columns(2)
+        # Filter Bulan, Project, dan Work Location (3 Kolom)
+        col_f1, col_f2, col_f3 = st.columns(3)
         with col_f1:
             months = sorted([
                 x.strip()
@@ -1793,6 +1794,15 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             selected_project = st.multiselect(
                 "Filter Project:", options=projects, default=projects
             )
+        with col_f3:
+            locations = sorted([
+                x.strip()
+                for x in df_mc_clean["Work Location"].unique()
+                if x.strip() != "" and x.strip().lower() != "nan"
+            ])
+            selected_location = st.multiselect(
+                "Filter Work Location:", options=locations, default=locations
+            )
 
         filtered_mc = df_mc_clean.copy()
         if selected_months:
@@ -1802,6 +1812,10 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         if selected_project:
             filtered_mc = filtered_mc[
                 filtered_mc["Project"].str.strip().isin(selected_project)
+            ]
+        if selected_location:
+            filtered_mc = filtered_mc[
+                filtered_mc["Work Location"].str.strip().isin(selected_location)
             ]
 
         # FUNGSI PARSER ANGKA YANG SANGAT ROBUST DAN PRESISI UNTUK GOOGLE SHEETS
@@ -1876,6 +1890,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 df_chart["Total Payment Amount"]
             )
             df_chart["Parsed_Salary"] = to_num(df_chart["Total Salary"])
+            df_chart["Parsed_Overtime"] = to_num(df_chart["Overtime"])
 
             # Ringkasan Naratif Eksekutif Otomatis
             if not df_chart.empty:
@@ -1906,7 +1921,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     .sum()
                     .reset_index()
                 )
-                # Konversi ke format datetime agar bisa diurutkan secara kronologis (dari yang terlama ke terbaru)
                 trend_month["Month_Dt"] = pd.to_datetime(
                     trend_month["Month"], errors="coerce"
                 )
@@ -1955,8 +1969,57 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 )
                 st.plotly_chart(fig_proj_cost, use_container_width=True)
 
-            # Baris Bawah: Perbandingan Langsung (Compare) antar Bulan per Project & Headcount Teratas
-            gc3, gc4 = st.columns(2)
+            # Baris Tengah: Grafik Overtime Berdasarkan Work Location & Headcount Teratas
+            gc_ot, gc4 = st.columns(2)
+            with gc_ot:
+                df_ot_loc = (
+                    df_chart.groupby("Work Location")["Parsed_Overtime"]
+                    .sum()
+                    .reset_index()
+                )
+                fig_ot_loc = px.bar(
+                    df_ot_loc,
+                    x="Parsed_Overtime",
+                    y="Work Location",
+                    orientation="h",
+                    title="Total Overtime Berdasarkan Work Location",
+                    text_auto=".2s",
+                    color="Parsed_Overtime",
+                    color_continuous_scale="Oranges",
+                )
+                fig_ot_loc.update_layout(
+                    yaxis={"categoryorder": "total ascending"},
+                    xaxis_title="Total Overtime (Rp)",
+                    yaxis_title="Work Location",
+                )
+                st.plotly_chart(fig_ot_loc, use_container_width=True)
+
+            with gc4:
+                top_hc = (
+                    df_chart.groupby("Project")["Name"]
+                    .count()
+                    .nlargest(10)
+                    .reset_index(name="Headcount")
+                )
+                fig_hc = px.bar(
+                    top_hc,
+                    x="Headcount",
+                    y="Project",
+                    orientation="h",
+                    title="Top 10 Project Berdasarkan Jumlah Headcount",
+                    text_auto=True,
+                    color="Headcount",
+                    color_continuous_scale="Teal",
+                )
+                fig_hc.update_layout(
+                    yaxis={"categoryorder": "total ascending"},
+                    xaxis_title="Jumlah Karyawan",
+                    yaxis_title="Project",
+                )
+                st.plotly_chart(fig_hc, use_container_width=True)
+
+            # Baris Bawah: Perbandingan Langsung (Compare) antar Bulan per Project
+            gc3, _ = st.columns(2)
             with gc3:
                 top_projects_list = (
                     df_chart.groupby("Project")["Parsed_Payment"]
@@ -1986,30 +2049,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     xaxis_tickangle=-25,
                 )
                 st.plotly_chart(fig_proj_month, use_container_width=True)
-
-            with gc4:
-                top_hc = (
-                    df_chart.groupby("Project")["Name"]
-                    .count()
-                    .nlargest(10)
-                    .reset_index(name="Headcount")
-                )
-                fig_hc = px.bar(
-                    top_hc,
-                    x="Headcount",
-                    y="Project",
-                    orientation="h",
-                    title="Top 10 Project Berdasarkan Jumlah Headcount",
-                    text_auto=True,
-                    color="Headcount",
-                    color_continuous_scale="Teal",
-                )
-                fig_hc.update_layout(
-                    yaxis={"categoryorder": "total ascending"},
-                    xaxis_title="Jumlah Karyawan",
-                    yaxis_title="Project",
-                )
-                st.plotly_chart(fig_hc, use_container_width=True)
 
         # --- TABEL DEBUGGING UNTUK MENGECEK SELISIH ANGKA ---
         with st.expander("🔍 Cek Detail / Baris Angka Total Payment Amount", expanded=False):
