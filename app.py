@@ -1867,13 +1867,11 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         km3.metric("Total Manpower Cost", f"Rp {total_mp_cost:,}".replace(",", "."))
         km4.metric("Total Payment Amount", f"Rp {total_payment:,}".replace(",", "."))
 
-        # --- GRAFIK ANALISIS MANPOWER COST YANG DIPERLUAS ---
+        # --- GRAFIK ANALISIS MANPOWER COST (BERBASIS PROJECT & BULAN) ---
         with st.expander("📊 **Grafik Analisis & Sebaran Biaya Manpower**", expanded=True):
             df_chart = filtered_mc.copy()
             df_chart["Parsed_Payment"] = to_num(df_chart["Total Payment Amount"])
             df_chart["Parsed_Salary"] = to_num(df_chart["Total Salary"])
-            df_chart["Parsed_BPJS"] = to_num(df_chart["BPJS"])
-            df_chart["Parsed_Mgmt_Fee"] = to_num(df_chart["Management Fee"])
 
             gc1, gc2 = st.columns(2)
             with gc1:
@@ -1905,25 +1903,21 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 fig_proj.update_layout(yaxis={"categoryorder": "total ascending"}, xaxis_title="Total Payment (Rp)", yaxis_title="Project")
                 st.plotly_chart(fig_proj, use_container_width=True)
 
-            # Tambahan Grafik Komposisi Komponen Biaya & Headcount per Project
             gc3, gc4 = st.columns(2)
             with gc3:
-                cost_components = pd.DataFrame({
-                    "Komponen": ["Total Salary", "BPJS", "Management Fee"],
-                    "Jumlah (Rp)": [
-                        df_chart["Parsed_Salary"].sum(),
-                        df_chart["Parsed_BPJS"].sum(),
-                        df_chart["Parsed_Mgmt_Fee"].sum()
-                    ]
-                })
-                fig_comp = px.pie(
-                    cost_components,
-                    names="Komponen",
-                    values="Jumlah (Rp)",
-                    title="Komposisi Komponen Biaya Utama",
-                    hole=0.4
+                top_cost_proj = df_chart.groupby("Project")["Parsed_Payment"].sum().nlargest(10).reset_index()
+                fig_proj_cost = px.bar(
+                    top_cost_proj,
+                    x="Parsed_Payment",
+                    y="Project",
+                    orientation="h",
+                    title="Top 10 Project Berdasarkan Total Payment",
+                    text_auto=".2s",
+                    color="Parsed_Payment",
+                    color_continuous_scale="Blues"
                 )
-                st.plotly_chart(fig_comp, use_container_width=True)
+                fig_proj_cost.update_layout(yaxis={"categoryorder": "total ascending"}, xaxis_title="Total Payment (Rp)", yaxis_title="Project")
+                st.plotly_chart(fig_proj_cost, use_container_width=True)
 
             with gc4:
                 top_hc = df_chart.groupby("Project")["Name"].count().nlargest(10).reset_index(name="Headcount")
