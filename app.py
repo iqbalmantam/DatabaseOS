@@ -1,8 +1,6 @@
 from datetime import date
 import io
-import time
 from fpdf import FPDF
-from google import genai
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -83,20 +81,11 @@ ADMIN_PIN = st.secrets.get("ADMIN_PIN", "2273")
 # --- KONEKSI GOOGLE SHEETS ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- CLIENT GEMINI AI ---
-@st.cache_resource
-def get_gemini_client():
-    return genai.Client(api_key=st.secrets.get("GEMINI_API_KEY"))
-
 # --- SIDEBAR: NAVIGASI MODUL ---
 st.sidebar.header("📁 Menu Utama")
 menu_pilihan = st.sidebar.radio(
     "Pilih Halaman:",
-    [
-        "👥 Master Data Karyawan", 
-        "⏱️ Rekap Absensi (Timesheet)",
-        "🤖 AI HR Assistant"
-    ],
+    ["👥 Master Data Karyawan", "⏱️ Rekap Absensi (Timesheet)"],
 )
 st.sidebar.markdown("---")
 
@@ -1250,9 +1239,13 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             columns=["In", "Out", "Shift", "Status"], level=1
         )
 
-        # Ubah nilai kosong / NaN menjadi '-' (KODE UNIVERSAL LINTAS VERSI PANDAS)
+        # Ubah nilai kosong / NaN menjadi '-'
         matrix_df = matrix_df.fillna("-")
-        matrix_df = matrix_df.replace(["None", "nan", "NaN", "null", ""], "-")
+        matrix_df = matrix_df.map(
+            lambda x: (
+                "-" if str(x).strip().lower() in ["none", "nan", ""] else x
+            )
+        )
 
         # Fungsi Styling Matrix
         def apply_matrix_styles(df):
@@ -1300,123 +1293,3 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
         )
 
         st.dataframe(styled_matrix, use_container_width=True, height=500)
-
-
-# ==============================================================================
-# MODUL 3: AI HR ASSISTANT (CHATBOT BOT)
-# ==============================================================================
-if menu_pilihan == "🤖 AI HR Assistant":
-
-    st.title("🤖 AI HR Assistant")
-    st.caption("Asisten Pintar untuk Analisis Data Karyawan Menggunakan Bahasa Sehari-hari.")
-
-    df_ai_source = st.session_state.employees
-
-    if df_ai_source.empty:
-        st.warning("Data karyawan saat ini kosong. Harap muat atau masukkan data terlebih dahulu.")
-    else:
-        # Inisialisasi Riwayat Chat
-        if "ai_chat_history" not in st.session_state:
-            st.session_state.ai_chat_history = [
-                {"role": "assistant", "content": "Halo! Saya AI Assistant HR. Ada informasi atau visualisasi data karyawan yang bisa saya bantu buatkan?"}
-            ]
-
-        # Tampilkan Riwayat Chat
-        for msg in st.session_state.ai_chat_history:
-            with st.chat_message(msg["role"]):
-                st.write(msg["content"])
-
-        # Input Pertanyaan User
-        if user_prompt := st.chat_input("Contoh: Tampilkan jumlah karyawan per Cost Center dalam bentuk grafik"):
-            # Simpan pesan user
-            st.session_state.ai_chat_history.append({"role": "user", "content": user_prompt})
-            with st.chat_message("user"):
-                st.write(user_prompt)
-
-            # Olah dengan Gemini API
-            with st.chat_message("assistant"):
-                with st.spinner("Menganalisis data..."):
-                    try:
-                        client = get_gemini_client()
-
-                        if not client:
-                            st.error("❌ `GEMINI_API_KEY` belum diset di `st.secrets`.")
-                        else:
-                            data_schema = f"""
-                            Variabel DataFrame bernama `df` memiliki struktur kolom berikut:
-                            {df_ai_source.dtypes.to_string()}
-
-                            Sampel 2 baris data:
-                            {df_ai_source.head(2).to_dict(orient='records')}
-                            """
-
-                            system_prompt = f"""
-                            Kamu adalah Data Analyst profesional untuk Employee Database Manager.
-                            Struktur dataframe `df` adalah sebagai berikut:
-                            {data_schema}
-
-                            Pertanyaan User: "{user_prompt}"
-
-                            TUGAS KAMU:
-                            Tuliskan KODE PYTHON SAJA untuk memproses DataFrame `df` dan menjawab pertanyaan user.
-
-                            ATURAN KODE:
-                            1. Gunakan variabel `df` yang sudah tersedia.
-                            2. Simpan teks/tabel/dataframe jawaban ke variabel `result`.
-                            3. Jika user meminta grafik/chart, gunakan Plotly Express (`px`) dan simpan ke variabel `fig`.
-                            4. Kembalikan HANYA kode python di dalam block ```python ... ``` tanpa teks tambahan apapun.
-                            """
-
-                            # --- MEKANISME AUTO-RETRY SAAT KUOTA API PENUH (RATE LIMIT 429) ---
-                            response = None
-                            max_retries = 3
-                            
-                            for attempt in range(max_retries):
-                                try:
-                                    response = client.models.generate_content(
-                                        model='gemini-2.0-flash',
-                                        contents=system_prompt,
-                                    )
-                                    if response and response.text:
-                                        break
-                                except Exception as err:
-                                    err_str = str(err)
-                                    if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                                        if attempt < max_retries - 1:
-                                            time.sleep(3)
-                                            continue
-                                    raise err
-
-                            # Ekstrak Kode Python
-                            raw_text = response.text
-                            if "```python" in raw_text:
-                                code_block = raw_text.split("```python")[1].split("```")[0].strip()
-                            elif "```" in raw_text:
-                                code_block = raw_text.split("```")[1].split("```")[0].strip()
-                            else:
-                                code_block = raw_text.strip("`")
-
-                            # Eksekusi Kode secara Lokal
-                            local_env = {"df": df_ai_source.copy(), "px": px, "pd": pd}
-                            exec(code_block, globals(), local_env)
-
-                            # Tampilkan Output Grafis / Tabel / Teks
-                            if "fig" in local_env:
-                                st.plotly_chart(local_env["fig"], use_container_width=True)
-                                st.session_state.ai_chat_history.append({"role": "assistant", "content": "[Menampilkan Grafik Visualisasi]"})
-                            
-                            if "result" in local_env:
-                                res = local_env["result"]
-                                if isinstance(res, pd.DataFrame):
-                                    st.dataframe(res, use_container_width=True)
-                                else:
-                                    st.write(res)
-                                st.session_state.ai_chat_history.append({"role": "assistant", "content": str(res)})
-
-                    except Exception as e:
-                        err_str = str(e)
-                        if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                            st.error("⏳ Server API Gemini sedang sangat padat. Silakan tunggu sekitar 10–15 detik sebelum menekan kirim kembali.")
-                        else:
-                            st.error(f"Gagal memproses pertanyaan: {err_str}")
-                        st.caption("Coba formulasikan ulang pertanyaan kamu dengan kalimat yang lebih spesifik.")
