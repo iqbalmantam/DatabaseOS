@@ -1774,7 +1774,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         with col_f2:
             cost_centers = sorted([
                 str(x)
-                for x in df_mc["Cost Center"].dropna().unique()
+                for x in df_mc["Cost Center Name"].dropna().unique()
                 if str(x).strip() != ""
             ])
             selected_cc = st.multiselect(
@@ -1788,7 +1788,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             ]
         if selected_cc:
             filtered_mc = filtered_mc[
-                filtered_mc["Cost Center"].astype(str).isin(selected_cc)
+                filtered_mc["Cost Center Name"].astype(str).isin(selected_cc)
             ]
 
         def to_num(series):
