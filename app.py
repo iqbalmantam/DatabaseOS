@@ -120,7 +120,7 @@ def load_data():
                 df["Tanggal Resign"] = "-"
             if "Terakhir Diperbarui" not in df.columns:
                 df["Terakhir Diperbarui"] = str(date.today())
-        return df
+        return df if df is not None else pd.DataFrame()
     except Exception:
         try:
             df = conn.read(ttl=0)
@@ -137,7 +137,7 @@ def load_data():
                     df["Tanggal Resign"] = "-"
                 if "Terakhir Diperbarui" not in df.columns:
                     df["Terakhir Diperbarui"] = str(date.today())
-            return df
+            return df if df is not None else pd.DataFrame()
         except Exception as e:
             st.error(f"Gagal terhubung ke Google Sheets: {e}")
             return pd.DataFrame(
@@ -165,8 +165,9 @@ def load_snapshot_data():
 
 
 def save_data(df):
-    conn.update(worksheet="Master_Karyawan", data=df)
-    st.session_state.employees = df
+    clean_df = df.fillna("")
+    conn.update(worksheet="Master_Karyawan", data=clean_df)
+    st.session_state.employees = clean_df
 
 
 def generate_pdf(df):
@@ -174,14 +175,14 @@ def generate_pdf(df):
     pdf.add_page()
     pdf.set_font("Helvetica", "B", 14)
 
-    pdf.cell(0, 10, "LAPORAN DATABASE KARYAWAN", ln=True, align="C")
+    pdf.cell(0, 10, "LAPORAN DATABASE KARYAWAN", new_x="LMARGIN", new_y="NEXT", align="C")
     pdf.set_font("Helvetica", "", 10)
     pdf.cell(
         0,
         6,
-        f"Dicetak Tanggal: {date.today().strftime('%d-%m-%Y')} | Total Record:"
-        f" {len(df)}",
-        ln=True,
+        f"Dicetak Tanggal: {date.today().strftime('%d-%m-%Y')} | Total Record: {len(df)}",
+        new_x="LMARGIN",
+        new_y="NEXT",
         align="C",
     )
     pdf.ln(4)
@@ -281,8 +282,7 @@ def generate_excel_formatted(df):
 
     ws.merge_cells("A2:J2")
     ws["A2"] = (
-        f"Tanggal Ekspor: {date.today().strftime('%d-%m-%Y')} | Total Record:"
-        f" {len(df)}"
+        f"Tanggal Ekspor: {date.today().strftime('%d-%m-%Y')} | Total Record: {len(df)}"
     )
     ws["A2"].font = Font(name="Calibri", size=10, italic=True, color="595959")
     ws.row_dimensions[1].height = 25
@@ -644,6 +644,7 @@ if menu_pilihan == "👥 Master Data Karyawan":
                     else:
                         df_new_snap = df_active[cols_order]
 
+                    df_new_snap = df_new_snap.fillna("")
                     conn.update(
                         worksheet="Snapshot_Bulanan", data=df_new_snap
                     )
@@ -673,6 +674,7 @@ if menu_pilihan == "👥 Master Data Karyawan":
                         df_snap_filtered = df_snap_exist[
                             df_snap_exist["Periode"] != period_to_delete
                         ]
+                        df_snap_filtered = df_snap_filtered.fillna("")
                         conn.update(
                             worksheet="Snapshot_Bulanan", data=df_snap_filtered
                         )
@@ -1136,7 +1138,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                 ).dt.strftime("%Y-%m-%d")
                 if "Status" not in df_absen.columns:
                     df_absen["Status"] = "Hadir"
-            return df_absen
+            return df_absen if df_absen is not None else pd.DataFrame()
         except Exception:
             return pd.DataFrame(
                 columns=[
@@ -1203,10 +1205,11 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                         subset=["ID", "Tanggal"], keep="last"
                     )
 
+                    clean_absensi = updated_absensi.fillna("")
                     conn.update(
-                        worksheet="Absensi_Karyawan", data=updated_absensi
+                        worksheet="Absensi_Karyawan", data=clean_absensi
                     )
-                    st.session_state.df_absensi = updated_absensi
+                    st.session_state.df_absensi = clean_absensi
 
                     st.success(
                         f"✅ Berhasil menyimpan {len(df_upload)} baris data"
@@ -1671,25 +1674,29 @@ if menu_pilihan == "💳 Manpower Cost Manager":
 
     def load_manpower_cost_data():
         try:
+            # Paksa ambil data tanpa caching
             df_mc = conn.read(worksheet="Manpower_Cost", ttl=0)
+
             if df_mc is not None and not df_mc.empty:
+                # Bersihkan spasi tak terlihat pada nama kolom Google Sheets
                 df_mc.columns = [str(c).strip() for c in df_mc.columns]
-                for col in MANPOWER_COST_HEADERS:
-                    if col not in df_mc.columns:
-                        df_mc[col] = ""
-                return df_mc[MANPOWER_COST_HEADERS]
+
+                # Buat pemetaan nama kolom agar tidak sensitif huruf besar/kecil & spasi
+                col_map = {str(c).strip().lower(): c for c in df_mc.columns}
+
+                # Buat DataFrame baru berdasarkan header standar
+                new_df = pd.DataFrame()
+                for target_col in MANPOWER_COST_HEADERS:
+                    key = target_col.strip().lower()
+                    if key in col_map:
+                        new_df[target_col] = df_mc[col_map[key]]
+                    else:
+                        new_df[target_col] = ""
+                return new_df
+
             return pd.DataFrame(columns=MANPOWER_COST_HEADERS)
-        except Exception:
-            try:
-                df_mc = conn.read(ttl=0)
-                if df_mc is not None and not df_mc.empty:
-                    df_mc.columns = [str(c).strip() for c in df_mc.columns]
-                    for col in MANPOWER_COST_HEADERS:
-                        if col not in df_mc.columns:
-                            df_mc[col] = ""
-                    return df_mc[MANPOWER_COST_HEADERS]
-            except Exception:
-                pass
+        except Exception as e:
+            st.error(f"Gagal mengambil data dari Google Sheets: {e}")
             return pd.DataFrame(columns=MANPOWER_COST_HEADERS)
 
     if "df_manpower_cost" not in st.session_state or st.sidebar.button(
@@ -1735,13 +1742,14 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     updated_mc = pd.concat(
                         [df_mc_old, df_mc_upload], ignore_index=True
                     )
+                    clean_mc = updated_mc.fillna("")
 
                     try:
-                        conn.update(worksheet="Manpower_Cost", data=updated_mc)
+                        conn.update(worksheet="Manpower_Cost", data=clean_mc)
                     except Exception:
-                        conn.update(data=updated_mc)
+                        conn.update(data=clean_mc)
 
-                    st.session_state.df_manpower_cost = updated_mc
+                    st.session_state.df_manpower_cost = clean_mc
                     st.success(
                         f"✅ Berhasil mengimpor {len(df_mc_upload)} baris data"
                         " Manpower Cost!"
@@ -1761,41 +1769,47 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             use_container_width=True,
         )
     else:
+        # PEMBERSIHAN DATA UNTUK FILTER & KALKULASI
+        df_mc_clean = df_mc.fillna("").astype(str)
+
         col_f1, col_f2 = st.columns(2)
         with col_f1:
             months = sorted([
-                str(x)
-                for x in df_mc["Month"].dropna().unique()
-                if str(x).strip() != ""
+                x.strip()
+                for x in df_mc_clean["Month"].unique()
+                if x.strip() != "" and x.strip().lower() != "nan"
             ])
             selected_months = st.multiselect(
                 "Filter Bulan (Month):", options=months, default=months
             )
         with col_f2:
             cost_centers = sorted([
-                str(x)
-                for x in df_mc["Cost Center Name"].dropna().unique()
-                if str(x).strip() != ""
+                x.strip()
+                for x in df_mc_clean["Cost Center Name"].unique()
+                if x.strip() != "" and x.strip().lower() != "nan"
             ])
             selected_cc = st.multiselect(
                 "Filter Cost Center:", options=cost_centers, default=cost_centers
             )
 
-        filtered_mc = df_mc.copy()
+        filtered_mc = df_mc_clean.copy()
         if selected_months:
             filtered_mc = filtered_mc[
-                filtered_mc["Month"].astype(str).isin(selected_months)
+                filtered_mc["Month"].str.strip().isin(selected_months)
             ]
         if selected_cc:
             filtered_mc = filtered_mc[
-                filtered_mc["Cost Center Name"].astype(str).isin(selected_cc)
+                filtered_mc["Cost Center Name"].str.strip().isin(selected_cc)
             ]
 
+        # FUNGSI KONVERSI ANGKA UNTUK HITUNG METRIC (AMAN FORMAT RUPIAH & USA)
         def to_num(series):
             return pd.to_numeric(
                 series.astype(str)
-                .str.replace(",", "")
-                .str.replace("Rp", "")
+                .str.replace("Rp", "", regex=False)
+                .str.replace(" ", "", regex=False)
+                .str.replace(".", "", regex=False)
+                .str.replace(",", ".", regex=False)
                 .str.strip(),
                 errors="coerce",
             ).fillna(0)
