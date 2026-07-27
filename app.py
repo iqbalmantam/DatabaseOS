@@ -823,6 +823,7 @@ if menu_pilihan == "👥 Master Data Karyawan":
                             color="Jumlah",
                             color_continuous_scale="Blues",
                         )
+                        fig_role.update_traces(textangle=0)
                         fig_role.update_layout(
                             yaxis={"categoryorder": "total ascending"}
                         )
@@ -851,7 +852,7 @@ if menu_pilihan == "👥 Master Data Karyawan":
                         line_shape="spline",
                     )
                     fig_trend.update_traces(
-                        line_color="#1F4E79", line_width=3, marker_size=8
+                        line_color="#1F4E79", line_width=3, marker_size=8, textangle=0
                     )
                     st.plotly_chart(fig_trend, use_container_width=True)
                 else:
@@ -897,11 +898,11 @@ if menu_pilihan == "👥 Master Data Karyawan":
                             color_continuous_scale="Viridis",
                             text="Jumlah",
                         )
+                        fig_cc.update_traces(textposition="outside", textangle=0)
                         fig_cc.update_layout(
                             yaxis={"categoryorder": "total ascending"},
                             height=max(450, len(cc_counts) * 25),
                         )
-                        fig_cc.update_traces(textposition="outside")
                         st.plotly_chart(fig_cc, use_container_width=True)
                 with c4:
                     if "Site" in df_ana.columns:
@@ -1343,7 +1344,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                         },
                     )
                     fig_status.update_traces(
-                        textposition="inside", textinfo="percent+label"
+                        textposition="inside", textinfo="percent+label", textangle=0
                     )
                     st.plotly_chart(fig_status, use_container_width=True)
 
@@ -1371,6 +1372,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                             "Tidak Hadir": "#D62728",
                         },
                     )
+                    fig_daily.update_traces(textangle=0)
                     fig_daily.update_xaxes(
                         type="category", title_text="Tanggal"
                     )
@@ -1428,11 +1430,12 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                                 "Rata_Rata_Karyawan": "Rata-Rata Orang / Hari",
                             },
                         )
-                        fig_shift.update_xaxes(type="category")
                         fig_shift.update_traces(
                             textposition="outside",
                             texttemplate="%{text} orang/hari",
+                            textangle=0,
                         )
+                        fig_shift.update_xaxes(type="category")
                         st.plotly_chart(fig_shift, use_container_width=True)
                     else:
                         st.info(
@@ -1486,6 +1489,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                             "Tidak Hadir": "#8B0000",
                         },
                     )
+                    fig_top.update_traces(textangle=0)
                     fig_top.update_layout(
                         yaxis={"categoryorder": "total ascending"},
                         legend_title_text="Status Khusus",
@@ -1937,6 +1941,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     color="Month",
                     color_discrete_sequence=["#2CA02C", "#1F4E79"],
                 )
+                fig_trend.update_traces(textangle=0)
                 fig_trend.update_layout(
                     xaxis_title="Bulan",
                     yaxis_title="Total Payment (Rp)",
@@ -1962,6 +1967,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     color="Parsed_Payment",
                     color_continuous_scale="Viridis",
                 )
+                fig_proj_cost.update_traces(textangle=0)
                 fig_proj_cost.update_layout(
                     yaxis={"categoryorder": "total ascending"},
                     xaxis_title="Total Payment (Rp)",
@@ -1986,6 +1992,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     title="Perbandingan Overtime Work Location (Compare per Bulan)",
                     text_auto=".2s",
                 )
+                fig_ot_loc.update_traces(textangle=0)
                 fig_ot_loc.update_layout(
                     xaxis_title="Work Location",
                     yaxis_title="Total Overtime (Rp)",
@@ -2010,6 +2017,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     color="Headcount",
                     color_continuous_scale="Teal",
                 )
+                fig_hc.update_traces(textangle=0)
                 fig_hc.update_layout(
                     yaxis={"categoryorder": "total ascending"},
                     xaxis_title="Jumlah Karyawan",
@@ -2042,6 +2050,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     title="Perbandingan Biaya Project (Compare per Bulan)",
                     text_auto=".2s",
                 )
+                fig_proj_month.update_traces(textangle=0)
                 fig_proj_month.update_layout(
                     xaxis_title="Project",
                     yaxis_title="Total Payment (Rp)",
