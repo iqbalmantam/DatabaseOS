@@ -2,6 +2,7 @@ from datetime import date
 import io
 import re
 from fpdf import FPDF
+from groq import Groq
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -93,18 +94,26 @@ def check_manpower_access():
         return True
 
     st.title("🔒 Manpower Cost Manager")
-    st.warning("Halaman ini berisi data sensitif finansial dan rahasia perusahaan.")
+    st.warning(
+        "Halaman ini berisi data sensitif finansial dan rahasia perusahaan."
+    )
 
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         with st.form("form_manpower_auth", clear_on_submit=True):
             st.subheader("Otorisasi Diperlukan")
-            input_pass = st.text_input("Masukkan Password Akses Manpower Cost:", type="password")
-            btn_submit = st.form_submit_button("Buka Akses Dashboard", use_container_width=True)
+            input_pass = st.text_input(
+                "Masukkan Password Akses Manpower Cost:", type="password"
+            )
+            btn_submit = st.form_submit_button(
+                "Buka Akses Dashboard", use_container_width=True
+            )
 
             if btn_submit:
                 # Mengambil MANPOWER_PASSWORD dari secrets, fallback ke default jika belum diset
-                correct_pass = st.secrets.get("MANPOWER_PASSWORD", "PasswordManpower2026!")
+                correct_pass = st.secrets.get(
+                    "MANPOWER_PASSWORD", "PasswordManpower2026!"
+                )
 
                 if input_pass == correct_pass:
                     st.session_state["manpower_authenticated"] = True
@@ -141,6 +150,7 @@ menu_pilihan = st.sidebar.radio(
         "👥 Master Data Karyawan",
         "⏱️ Rekap Absensi (Timesheet)",
         "💳 Manpower Cost Manager",
+        "🤖 AI HR Assistant",  # Modul Tambahan AI Chatbot
     ],
 )
 st.sidebar.markdown("---")
@@ -222,12 +232,15 @@ def generate_pdf(df):
     pdf.add_page()
     pdf.set_font("Helvetica", "B", 14)
 
-    pdf.cell(0, 10, "LAPORAN DATABASE KARYAWAN", new_x="LMARGIN", new_y="NEXT", align="C")
+    pdf.cell(
+        0, 10, "LAPORAN DATABASE KARYAWAN", new_x="LMARGIN", new_y="NEXT", align="C"
+    )
     pdf.set_font("Helvetica", "", 10)
     pdf.cell(
         0,
         6,
-        f"Dicetak Tanggal: {date.today().strftime('%d-%m-%Y')} | Total Record: {len(df)}",
+        f"Dicetak Tanggal: {date.today().strftime('%d-%m-%Y')} | Total Record:"
+        f" {len(df)}",
         new_x="LMARGIN",
         new_y="NEXT",
         align="C",
@@ -263,7 +276,11 @@ def generate_pdf(df):
         )
         pdf.cell(col_widths[2], 6, str(row.get("Posisi", ""))[:20], border=1)
         pdf.cell(
-            col_widths[3], 6, str(row.get("Cost Center", "")), border=1, align="C"
+            col_widths[3],
+            6,
+            str(row.get("Cost Center", "")),
+            border=1,
+            align="C",
         )
         pdf.cell(
             col_widths[4],
@@ -319,7 +336,10 @@ def generate_excel_formatted(df):
     data_font = Font(name="Calibri", size=10)
     border_thin = Side(border_style="thin", color="D9D9D9")
     border_box = Border(
-        left=border_thin, right=border_thin, top=border_thin, bottom=border_thin
+        left=border_thin,
+        right=border_thin,
+        top=border_thin,
+        bottom=border_thin,
     )
 
     ws.merge_cells("A1:J1")
@@ -329,7 +349,8 @@ def generate_excel_formatted(df):
 
     ws.merge_cells("A2:J2")
     ws["A2"] = (
-        f"Tanggal Ekspor: {date.today().strftime('%d-%m-%Y')} | Total Record: {len(df)}"
+        f"Tanggal Ekspor: {date.today().strftime('%d-%m-%Y')} | Total Record:"
+        f" {len(df)}"
     )
     ws["A2"].font = Font(name="Calibri", size=10, italic=True, color="595959")
     ws.row_dimensions[1].height = 25
@@ -402,7 +423,9 @@ def generate_next_id():
 
 # --- SIDEBAR: OTENTIKASI ADMIN ---
 st.sidebar.header("🔐 Akses Pengguna")
-role = st.sidebar.radio("Pilih Mode Akses:", ["Umum (View Only)", "Administrator"])
+role = st.sidebar.radio(
+    "Pilih Mode Akses:", ["Umum (View Only)", "Administrator"]
+)
 
 is_admin = False
 if role == "Administrator":
@@ -468,7 +491,8 @@ if menu_pilihan == "👥 Master Data Karyawan":
                 )
                 new_end = st.date_input("Akhir Kontrak", value=date.today())
                 new_site = st.text_input(
-                    "Site / Lokasi Kerja", placeholder="Contoh: JDC / Head Office"
+                    "Site / Lokasi Kerja",
+                    placeholder="Contoh: JDC / Head Office",
                 )
                 new_status = st.selectbox(
                     "Status Karyawan", ["Aktif", "Resign", "PKWT"]
@@ -944,7 +968,9 @@ if menu_pilihan == "👥 Master Data Karyawan":
                             color_continuous_scale="Viridis",
                             text="Jumlah",
                         )
-                        fig_cc.update_traces(textposition="outside", textangle=0)
+                        fig_cc.update_traces(
+                            textposition="outside", textangle=0
+                        )
                         fig_cc.update_layout(
                             yaxis={"categoryorder": "total ascending"},
                             height=max(450, len(cc_counts) * 25),
@@ -1052,7 +1078,9 @@ if menu_pilihan == "👥 Master Data Karyawan":
             st.download_button(
                 label="📄 Cetak / Download PDF",
                 data=pdf_bytes,
-                file_name=f"Laporan_Karyawan_{date.today().strftime('%Y%m%d')}.pdf",
+                file_name=(
+                    f"Laporan_Karyawan_{date.today().strftime('%Y%m%d')}.pdf"
+                ),
                 mime="application/pdf",
                 use_container_width=True,
             )
@@ -1698,7 +1726,11 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         )
     with col_mc_lock:
         st.write("")
-        if st.button("🔒 Kunci Modul", use_container_width=True, help="Keluar dan kunci kembali halaman ini"):
+        if st.button(
+            "🔒 Kunci Modul",
+            use_container_width=True,
+            help="Keluar dan kunci kembali halaman ini",
+        ):
             st.session_state["manpower_authenticated"] = False
             st.rerun()
 
@@ -1746,7 +1778,11 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             except Exception:
                 df_mc = None
 
-        if df_mc is not None and isinstance(df_mc, pd.DataFrame) and not df_mc.empty:
+        if (
+            df_mc is not None
+            and isinstance(df_mc, pd.DataFrame)
+            and not df_mc.empty
+        ):
             df_mc.columns = [str(c).strip() for c in df_mc.columns]
             col_map = {str(c).strip().lower(): c for c in df_mc.columns}
 
@@ -1757,7 +1793,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     new_df[target_col] = df_mc[col_map[key]]
                 else:
                     new_df[target_col] = ""
-            
+
             if "Month" in new_df.columns:
                 new_df = new_df[new_df["Month"].astype(str).str.strip() != ""]
 
@@ -1890,7 +1926,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 if not s or s.lower() in ["nan", "none", "-", ""]:
                     return 0.0
 
-                s_clean = re.sub(r'[^\d.,-]', '', s)
+                s_clean = re.sub(r"[^\d.,-]", "", s)
                 if not s_clean:
                     return 0.0
 
@@ -1941,8 +1977,12 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         km1, km2, km3, km4 = st.columns(4)
         km1.metric("Total Headcount", f"{total_headcount:,}")
         km2.metric("Total Salary", f"Rp {total_salary:,}".replace(",", "."))
-        km3.metric("Total Manpower Cost", f"Rp {total_mp_cost:,}".replace(",", "."))
-        km4.metric("Total Payment Amount", f"Rp {total_payment:,}".replace(",", "."))
+        km3.metric(
+            "Total Manpower Cost", f"Rp {total_mp_cost:,}".replace(",", ".")
+        )
+        km4.metric(
+            "Total Payment Amount", f"Rp {total_payment:,}".replace(",", ".")
+        )
 
         # --- GRAFIK ANALISIS MANPOWER COST (RAMAH UMUM & INTUITIF) ---
         with st.expander(
@@ -1990,7 +2030,9 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 trend_month = trend_month.sort_values(
                     by=["Month_Dt", "Month"], ascending=[True, True]
                 )
-                trend_month["Text_Format"] = trend_month["Parsed_Payment"].apply(format_rp_short)
+                trend_month["Text_Format"] = trend_month[
+                    "Parsed_Payment"
+                ].apply(format_rp_short)
 
                 fig_trend = px.bar(
                     trend_month,
@@ -2004,13 +2046,19 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 fig_trend.update_traces(
                     textangle=0,
                     textposition="outside",
-                    hovertemplate="<b>Bulan:</b> %{x}<br><b>Total Payment:</b> Rp %{y:,.0f}<extra></extra>"
+                    hovertemplate=(
+                        "<b>Bulan:</b> %{x}<br><b>Total Payment:</b> Rp"
+                        " %{y:,.0f}<extra></extra>"
+                    ),
                 )
                 fig_trend.update_layout(
                     xaxis_title="Bulan",
                     yaxis_title="Total Payment (Rp)",
                     showlegend=False,
-                    xaxis={"categoryorder": "array", "categoryarray": trend_month["Month"].tolist()}
+                    xaxis={
+                        "categoryorder": "array",
+                        "categoryarray": trend_month["Month"].tolist(),
+                    },
                 )
                 st.plotly_chart(fig_trend, use_container_width=True)
 
@@ -2021,7 +2069,9 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     .nlargest(10)
                     .reset_index()
                 )
-                top_cost_proj["Text_Format"] = top_cost_proj["Parsed_Payment"].apply(format_rp_short)
+                top_cost_proj["Text_Format"] = top_cost_proj[
+                    "Parsed_Payment"
+                ].apply(format_rp_short)
 
                 fig_proj_cost = px.bar(
                     top_cost_proj,
@@ -2036,7 +2086,10 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 fig_proj_cost.update_traces(
                     textangle=0,
                     textposition="outside",
-                    hovertemplate="<b>Project:</b> %{y}<br><b>Total Payment:</b> Rp %{x:,.0f}<extra></extra>"
+                    hovertemplate=(
+                        "<b>Project:</b> %{y}<br><b>Total Payment:</b> Rp"
+                        " %{x:,.0f}<extra></extra>"
+                    ),
                 )
                 fig_proj_cost.update_layout(
                     yaxis={"categoryorder": "total ascending"},
@@ -2049,11 +2102,15 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             gc_ot, gc4 = st.columns(2)
             with gc_ot:
                 df_ot_loc_month = (
-                    df_chart.groupby(["Work Location", "Month"])["Parsed_Overtime"]
+                    df_chart.groupby(["Work Location", "Month"])[
+                        "Parsed_Overtime"
+                    ]
                     .sum()
                     .reset_index()
                 )
-                df_ot_loc_month["Text_Format"] = df_ot_loc_month["Parsed_Overtime"].apply(format_rp_short)
+                df_ot_loc_month["Text_Format"] = df_ot_loc_month[
+                    "Parsed_Overtime"
+                ].apply(format_rp_short)
 
                 fig_ot_loc = px.bar(
                     df_ot_loc_month,
@@ -2061,13 +2118,19 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     y="Parsed_Overtime",
                     color="Month",
                     barmode="group",
-                    title="Perbandingan Overtime Work Location (Compare per Bulan)",
+                    title=(
+                        "Perbandingan Overtime Work Location (Compare per"
+                        " Bulan)"
+                    ),
                     text="Text_Format",
                 )
                 fig_ot_loc.update_traces(
                     textangle=0,
                     textposition="outside",
-                    hovertemplate="<b>Location:</b> %{x}<br><b>Overtime:</b> Rp %{y:,.0f}<extra></extra>"
+                    hovertemplate=(
+                        "<b>Location:</b> %{x}<br><b>Overtime:</b> Rp"
+                        " %{y:,.0f}<extra></extra>"
+                    ),
                 )
                 fig_ot_loc.update_layout(
                     xaxis_title="Work Location",
@@ -2116,7 +2179,9 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     .sum()
                     .reset_index()
                 )
-                df_proj_month["Text_Format"] = df_proj_month["Parsed_Payment"].apply(format_rp_short)
+                df_proj_month["Text_Format"] = df_proj_month[
+                    "Parsed_Payment"
+                ].apply(format_rp_short)
 
                 fig_proj_month = px.bar(
                     df_proj_month,
@@ -2130,7 +2195,10 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 fig_proj_month.update_traces(
                     textangle=0,
                     textposition="outside",
-                    hovertemplate="<b>Project:</b> %{x}<br><b>Total Payment:</b> Rp %{y:,.0f}<extra></extra>"
+                    hovertemplate=(
+                        "<b>Project:</b> %{x}<br><b>Total Payment:</b> Rp"
+                        " %{y:,.0f}<extra></extra>"
+                    ),
                 )
                 fig_proj_month.update_layout(
                     xaxis_title="Project",
@@ -2140,10 +2208,22 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 st.plotly_chart(fig_proj_month, use_container_width=True)
 
         # --- TABEL DEBUGGING UNTUK MENGECEK SELISIH ANGKA ---
-        with st.expander("🔍 Cek Detail / Baris Angka Total Payment Amount", expanded=False):
-            st.caption("Gunakan tabel ini untuk memastikan apakah ada baris yang bernilai 0 atau salah format.")
-            debug_df = filtered_mc[["Month", "Project", "Name", "Total Payment Amount"]].copy()
-            debug_df["Parsed Numeric"] = to_num(filtered_mc["Total Payment Amount"])
+        with st.expander(
+            "🔍 Cek Detail / Baris Angka Total Payment Amount", expanded=False
+        ):
+            st.caption(
+                "Gunakan tabel ini untuk memastikan apakah ada baris yang"
+                " bernilai 0 atau salah format."
+            )
+            debug_df = filtered_mc[[
+                "Month",
+                "Project",
+                "Name",
+                "Total Payment Amount",
+            ]].copy()
+            debug_df["Parsed Numeric"] = to_num(
+                filtered_mc["Total Payment Amount"]
+            )
             st.dataframe(debug_df, use_container_width=True)
 
         # FORMAT KOLOM ANGKA DENGAN PEMISAH RIBUAN TITIK (.)
@@ -2192,3 +2272,82 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             ),
             mime="text/csv",
         )
+
+
+# ==============================================================================
+# MODUL 4: AI HR ASSISTANT (POWERED BY GROQ)
+# ==============================================================================
+if menu_pilihan == "🤖 AI HR Assistant":
+
+    st.title("🤖 AI HR Assistant")
+    st.caption(
+        "Asisten AI cerdas untuk membantu pembuatan draft surat, analisis HR,"
+        " konsultasi regulasi, dan tugas administrasi."
+    )
+
+    groq_key = st.secrets.get("GROQ_API_KEY", "")
+
+    if not groq_key:
+        st.error(
+            "⚠️ API Key Groq belum dikonfigurasi di secrets.toml! Silakan"
+            " tambahkan GROQ_API_KEY."
+        )
+        st.stop()
+
+    client = Groq(api_key=groq_key)
+
+    if "chat_messages" not in st.session_state:
+        st.session_state.chat_messages = [
+            {
+                "role": "assistant",
+                "content": (
+                    "Halo! Saya adalah Asisten AI HR Anda. Ada yang bisa saya"
+                    " bantu terkait data karyawan, draf surat resmi, atau"
+                    " konsultasi regulasi HR?"
+                ),
+            }
+        ]
+
+    for message in st.session_state.chat_messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    if prompt := st.chat_input("Ketik pertanyaan atau instruksi Anda di sini..."):
+        st.session_state.chat_messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.chat_message("assistant"):
+            with st.spinner("Sedang berpikir..."):
+                try:
+                    api_messages = [
+                        {
+                            "role": "system",
+                            "content": (
+                                "Anda adalah Asisten HR & Analytics profesional"
+                                " yang sangat handal. Berikan jawaban yang"
+                                " sopan, jelas, berstruktur rapi, dan mudah"
+                                " dipahami."
+                            ),
+                        }
+                    ] + [
+                        {"role": m["role"], "content": m["content"]}
+                        for m in st.session_state.chat_messages
+                    ]
+
+                    completion = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=api_messages,
+                        temperature=0.7,
+                        max_tokens=2048,
+                    )
+
+                    response_text = completion.choices[0].message.content
+                    st.markdown(response_text)
+
+                    st.session_state.chat_messages.append(
+                        {"role": "assistant", "content": response_text}
+                    )
+
+                except Exception as e:
+                    st.error(f"❌ Terjadi kesalahan: {e}")
