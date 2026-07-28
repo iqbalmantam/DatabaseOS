@@ -2154,7 +2154,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 )
                 st.plotly_chart(fig_hc, use_container_width=True)
 
-            gc3, _ = st.columns(2)
+            gc3, gc_emp = st.columns(2)
             with gc3:
                 top_projects_list = (
                     df_chart.groupby("Project")["Parsed_Payment"]
@@ -2195,6 +2195,73 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     xaxis_tickangle=-25,
                 )
                 st.plotly_chart(fig_proj_month, use_container_width=True)
+
+            with gc_emp:
+                # --- GRAFIK BAR PERBANDINGAN FDW VS TDW PER PROJECT ---
+                if (
+                    "Employment Status" in df_chart.columns
+                    and "Project" in df_chart.columns
+                ):
+                    df_emp_chart = df_chart.copy()
+                    df_emp_chart["Employment Status Clean"] = (
+                        df_emp_chart["Employment Status"]
+                        .astype(str)
+                        .str.strip()
+                        .str.upper()
+                        .replace("", "BELUM DIISI")
+                    )
+
+                    # Ambil top 8 project terbesar untuk scannability
+                    top_emp_projects = (
+                        df_emp_chart.groupby("Project")["Parsed_Payment"]
+                        .sum()
+                        .nlargest(8)
+                        .index
+                    )
+
+                    df_stat_proj = (
+                        df_emp_chart[
+                            df_emp_chart["Project"].isin(top_emp_projects)
+                        ]
+                        .groupby(["Project", "Employment Status Clean"])[
+                            "Parsed_Payment"
+                        ]
+                        .sum()
+                        .reset_index()
+                    )
+                    df_stat_proj["Text_Format"] = df_stat_proj[
+                        "Parsed_Payment"
+                    ].apply(format_rp_short)
+
+                    fig_stat_proj = px.bar(
+                        df_stat_proj,
+                        x="Project",
+                        y="Parsed_Payment",
+                        color="Employment Status Clean",
+                        barmode="group",
+                        title=(
+                            "Perbandingan Biaya (Total Payment) FDW vs TDW per"
+                            " Project"
+                        ),
+                        text="Text_Format",
+                        color_discrete_sequence=px.colors.qualitative.Bold,
+                    )
+                    fig_stat_proj.update_traces(
+                        textangle=0,
+                        textposition="outside",
+                        hovertemplate=(
+                            "<b>Project:</b> %{x}<br><b>Status:</b>"
+                            " %{fullData.name}<br><b>Total Payment:</b> Rp"
+                            " %{y:,.0f}<extra></extra>"
+                        ),
+                    )
+                    fig_stat_proj.update_layout(
+                        xaxis_title="Project",
+                        yaxis_title="Total Payment (Rp)",
+                        xaxis_tickangle=-25,
+                        legend_title_text="Employment Status",
+                    )
+                    st.plotly_chart(fig_stat_proj, use_container_width=True)
 
         with st.expander(
             "🔍 Cek Detail / Baris Angka Total Payment Amount", expanded=False
