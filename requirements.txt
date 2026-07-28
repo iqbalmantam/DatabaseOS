@@ -1,6 +1,7 @@
 streamlit
-st-gsheets-connection
 pandas
-openpyxl
-fpdf2
 plotly
+fpdf2
+openpyxl
+streamlit-gsheets
+groq
