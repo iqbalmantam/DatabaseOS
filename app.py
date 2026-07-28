@@ -2275,14 +2275,13 @@ if menu_pilihan == "💳 Manpower Cost Manager":
 
 
 # ==============================================================================
-# MODUL 4: AI HR ASSISTANT (POWERED BY GROQ)
+# MODUL 4: AI HR ASSISTANT (POWERED BY GROQ & CONNECTED TO SHEETS)
 # ==============================================================================
 if menu_pilihan == "🤖 AI HR Assistant":
 
     st.title("🤖 AI HR Assistant")
     st.caption(
-        "Asisten AI cerdas untuk membantu pembuatan draft surat, analisis HR,"
-        " konsultasi regulasi, dan tugas administrasi."
+        "Asisten AI cerdas terintegrasi dengan Database Karyawan & Manpower Cost."
     )
 
     groq_key = st.secrets.get("GROQ_API_KEY", "")
@@ -2296,40 +2295,76 @@ if menu_pilihan == "🤖 AI HR Assistant":
 
     client = Groq(api_key=groq_key)
 
+    # --- HITUNG KONTEKS DATA REALTIME UNTUK DIBERIKAN KE AI ---
+    df_emp = st.session_state.get("employees", pd.DataFrame())
+
+    # Ringkasan Karyawan
+    total_emp = len(df_emp)
+    if not df_emp.empty and "Status" in df_emp.columns:
+        aktif_emp = len(df_emp[df_emp["Status"] == "Aktif"])
+        resign_emp = len(df_emp[df_emp["Status"] == "Resign"])
+    else:
+        aktif_emp, resign_emp = total_emp, 0
+
+    # Ringkasan per Site / Lokasi Kerja
+    site_summary = ""
+    if not df_emp.empty and "Site" in df_emp.columns:
+        site_counts = df_emp["Site"].astype(str).str.strip().str.upper().value_counts().to_dict()
+        site_summary = ", ".join([f"{k}: {v} orang" for k, v in site_counts.items() if k and k != "NAN"])
+
+    # Ringkasan per Cost Center / Project
+    cc_summary = ""
+    if not df_emp.empty and "Cost Center" in df_emp.columns:
+        cc_counts = df_emp["Cost Center"].astype(str).str.strip().value_counts().head(10).to_dict()
+        cc_summary = ", ".join([f"{k}: {v} orang" for k, v in cc_counts.items() if k and k != "NAN"])
+
+    # --- BUAT SYSTEM PROMPT PINTAR BERISI DATA REALTIME ---
+    system_prompt_context = f"""
+    Anda adalah Asisten AI HR internal perusahaan yang cerdas dan sangat membantu.
+    Anda memiliki akses langsung ke ringkasan data realtime berikut dari aplikasi:
+
+    📊 REKAP DATABASE KARYAWAN SAAT INI:
+    - Total Record Karyawan: {total_emp} orang
+    - Karyawan Aktif: {aktif_emp} orang
+    - Karyawan Resign: {resign_emp} orang
+    - Distribusi Site / Lokasi Kerja (misal JDC, Head Office, dll): {site_summary if site_summary else 'Data site belum diisi'}
+    - Sebaran Cost Center / Project Utama: {cc_summary if cc_summary else 'Data CC belum diisi'}
+
+    PETUNJUK BALASAN:
+    1. Gunakan data di atas untuk menjawab pertanyaan pengguna terkait jumlah karyawan (termasuk lokasi spesifik seperti JDC).
+    2. Jika pengguna menanyakan jumlah karyawan pada lokasi/site tertentu, rujuklah data Distribusi Site di atas.
+    3. Jawab dengan bahasa Indonesia yang sopan, ramah, dan profesional.
+    """
+
+    # Inisialisasi Chat History
     if "chat_messages" not in st.session_state:
         st.session_state.chat_messages = [
             {
                 "role": "assistant",
                 "content": (
-                    "Halo! Saya adalah Asisten AI HR Anda. Ada yang bisa saya"
-                    " bantu terkait data karyawan, draf surat resmi, atau"
-                    " konsultasi regulasi HR?"
+                    f"Halo! Saya adalah Asisten AI HR Anda. Saya telah terhubung"
+                    f" dengan database ({aktif_emp} Karyawan Aktif). Ada yang bisa saya bantu?"
                 ),
             }
         ]
 
+    # Tampilkan seluruh riwayat chat
     for message in st.session_state.chat_messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    if prompt := st.chat_input("Ketik pertanyaan atau instruksi Anda di sini..."):
+    # Input User
+    if prompt := st.chat_input("Ketik pertanyaan Anda (misal: 'berapa jumlah total karyawan JDC?')..."):
         st.session_state.chat_messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
         with st.chat_message("assistant"):
-            with st.spinner("Sedang berpikir..."):
+            with st.spinner("Menganalisis database..."):
                 try:
+                    # Gabungkan System Prompt kontekstual dengan riwayat percakapan
                     api_messages = [
-                        {
-                            "role": "system",
-                            "content": (
-                                "Anda adalah Asisten HR & Analytics profesional"
-                                " yang sangat handal. Berikan jawaban yang"
-                                " sopan, jelas, berstruktur rapi, dan mudah"
-                                " dipahami."
-                            ),
-                        }
+                        {"role": "system", "content": system_prompt_context}
                     ] + [
                         {"role": m["role"], "content": m["content"]}
                         for m in st.session_state.chat_messages
@@ -2338,8 +2373,8 @@ if menu_pilihan == "🤖 AI HR Assistant":
                     completion = client.chat.completions.create(
                         model="llama-3.3-70b-versatile",
                         messages=api_messages,
-                        temperature=0.7,
-                        max_tokens=2048,
+                        temperature=0.3,
+                        max_tokens=1024,
                     )
 
                     response_text = completion.choices[0].message.content
