@@ -29,6 +29,18 @@ st.markdown(
 )
 
 
+# --- FUNGSI FORMAT ANGKA GRAFIK (RUPIAH & SINGKATAN LOKAL) ---
+def format_rp_short(val):
+    """Mengubah nominal angka besar menjadi format singkat Rp Indonesia (M / Juta)."""
+    if val >= 1e9:
+        return f"Rp {val/1e9:.2f} M".replace(".", ",")
+    elif val >= 1e6:
+        return f"Rp {val/1e6:.1f} Jt".replace(".", ",")
+    elif val > 0:
+        return f"Rp {val:,.0f}".replace(",", ".")
+    return "Rp 0"
+
+
 # --- SISTEM PROTEKSI PASSWORD APPS ---
 def check_password():
     """Memeriksa apakah pengguna sudah memasukkan password aplikasi yang benar."""
@@ -1978,17 +1990,22 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 trend_month = trend_month.sort_values(
                     by=["Month_Dt", "Month"], ascending=[True, True]
                 )
+                trend_month["Text_Format"] = trend_month["Parsed_Payment"].apply(format_rp_short)
 
                 fig_trend = px.bar(
                     trend_month,
                     x="Month",
                     y="Parsed_Payment",
                     title="Total Payment Amount per Bulan",
-                    text_auto=".2s",
+                    text="Text_Format",
                     color="Month",
                     color_discrete_sequence=["#2CA02C", "#1F4E79"],
                 )
-                fig_trend.update_traces(textangle=0)
+                fig_trend.update_traces(
+                    textangle=0,
+                    textposition="outside",
+                    hovertemplate="<b>Bulan:</b> %{x}<br><b>Total Payment:</b> Rp %{y:,.0f}<extra></extra>"
+                )
                 fig_trend.update_layout(
                     xaxis_title="Bulan",
                     yaxis_title="Total Payment (Rp)",
@@ -2004,17 +2021,23 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     .nlargest(10)
                     .reset_index()
                 )
+                top_cost_proj["Text_Format"] = top_cost_proj["Parsed_Payment"].apply(format_rp_short)
+
                 fig_proj_cost = px.bar(
                     top_cost_proj,
                     x="Parsed_Payment",
                     y="Project",
                     orientation="h",
                     title="Top 10 Project Berdasarkan Total Payment",
-                    text_auto=".2s",
+                    text="Text_Format",
                     color="Parsed_Payment",
                     color_continuous_scale="Viridis",
                 )
-                fig_proj_cost.update_traces(textangle=0)
+                fig_proj_cost.update_traces(
+                    textangle=0,
+                    textposition="outside",
+                    hovertemplate="<b>Project:</b> %{y}<br><b>Total Payment:</b> Rp %{x:,.0f}<extra></extra>"
+                )
                 fig_proj_cost.update_layout(
                     yaxis={"categoryorder": "total ascending"},
                     xaxis_title="Total Payment (Rp)",
@@ -2030,6 +2053,8 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     .sum()
                     .reset_index()
                 )
+                df_ot_loc_month["Text_Format"] = df_ot_loc_month["Parsed_Overtime"].apply(format_rp_short)
+
                 fig_ot_loc = px.bar(
                     df_ot_loc_month,
                     x="Work Location",
@@ -2037,9 +2062,13 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     color="Month",
                     barmode="group",
                     title="Perbandingan Overtime Work Location (Compare per Bulan)",
-                    text_auto=".2s",
+                    text="Text_Format",
                 )
-                fig_ot_loc.update_traces(textangle=0)
+                fig_ot_loc.update_traces(
+                    textangle=0,
+                    textposition="outside",
+                    hovertemplate="<b>Location:</b> %{x}<br><b>Overtime:</b> Rp %{y:,.0f}<extra></extra>"
+                )
                 fig_ot_loc.update_layout(
                     xaxis_title="Work Location",
                     yaxis_title="Total Overtime (Rp)",
@@ -2087,6 +2116,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     .sum()
                     .reset_index()
                 )
+                df_proj_month["Text_Format"] = df_proj_month["Parsed_Payment"].apply(format_rp_short)
 
                 fig_proj_month = px.bar(
                     df_proj_month,
@@ -2095,9 +2125,13 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     color="Month",
                     barmode="group",
                     title="Perbandingan Biaya Project (Compare per Bulan)",
-                    text_auto=".2s",
+                    text="Text_Format",
                 )
-                fig_proj_month.update_traces(textangle=0)
+                fig_proj_month.update_traces(
+                    textangle=0,
+                    textposition="outside",
+                    hovertemplate="<b>Project:</b> %{x}<br><b>Total Payment:</b> Rp %{y:,.0f}<extra></extra>"
+                )
                 fig_proj_month.update_layout(
                     xaxis_title="Project",
                     yaxis_title="Total Payment (Rp)",
