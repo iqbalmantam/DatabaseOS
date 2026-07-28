@@ -110,7 +110,6 @@ def check_manpower_access():
             )
 
             if btn_submit:
-                # Mengambil MANPOWER_PASSWORD dari secrets, fallback ke default jika belum diset
                 correct_pass = st.secrets.get(
                     "MANPOWER_PASSWORD", "PasswordManpower2026!"
                 )
@@ -150,7 +149,7 @@ menu_pilihan = st.sidebar.radio(
         "👥 Master Data Karyawan",
         "⏱️ Rekap Absensi (Timesheet)",
         "💳 Manpower Cost Manager",
-        "🤖 AI HR Assistant",  # Modul Tambahan AI Chatbot
+        "🤖 AI HR Assistant",
     ],
 )
 st.sidebar.markdown("---")
@@ -1417,7 +1416,6 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                             "Tidak Hadir": "#E78AC3",
                         },
                     )
-                    # PIE CHART TIDAK PAKAI textangle
                     fig_status.update_traces(
                         textposition="inside", textinfo="percent+label"
                     )
@@ -1712,11 +1710,9 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
 # ==============================================================================
 if menu_pilihan == "💳 Manpower Cost Manager":
 
-    # --- JALANKAN BARIKADE PASSWORD OTORISASI ---
     if not check_manpower_access():
-        st.stop()  # Hentikan rendering sisa halaman jika password belum terverifikasi
+        st.stop()
 
-    # --- HEADER MODUL & TOMBOL KUNCI KEMBALI ---
     col_mc_head, col_mc_lock = st.columns([4, 1])
     with col_mc_head:
         st.title("💳 Manpower Cost Manager")
@@ -1873,7 +1869,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
     else:
         df_mc_clean = df_mc.fillna("").astype(str)
 
-        # Filter Bulan, Project, dan Work Location (3 Kolom)
         col_f1, col_f2, col_f3 = st.columns(3)
         with col_f1:
             months = sorted([
@@ -1917,7 +1912,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 filtered_mc["Work Location"].str.strip().isin(selected_location)
             ]
 
-        # FUNGSI PARSER ANGKA YANG SANGAT ROBUST DAN PRESISI UNTUK GOOGLE SHEETS
         def to_num(series):
             def parse_val(val):
                 if pd.isna(val):
@@ -1984,7 +1978,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             "Total Payment Amount", f"Rp {total_payment:,}".replace(",", ".")
         )
 
-        # --- GRAFIK ANALISIS MANPOWER COST (RAMAH UMUM & INTUITIF) ---
         with st.expander(
             "📊 **Dashboard Analytics & Sebaran Biaya Manpower**", expanded=True
         ):
@@ -1995,7 +1988,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             df_chart["Parsed_Salary"] = to_num(df_chart["Total Salary"])
             df_chart["Parsed_Overtime"] = to_num(df_chart["Overtime"])
 
-            # Ringkasan Naratif Eksekutif Otomatis
             if not df_chart.empty:
                 top_proj_name = (
                     df_chart.groupby("Project")["Parsed_Payment"]
@@ -2016,7 +2008,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     f" dengan nilai sebesar **{formatted_top_val}**."
                 )
 
-            # Baris Atas: Tren per Bulan & Top 10 Project
             gc1, gc2 = st.columns(2)
             with gc1:
                 trend_month = (
@@ -2098,7 +2089,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 )
                 st.plotly_chart(fig_proj_cost, use_container_width=True)
 
-            # Baris Tengah: Perbandingan Overtime antar Bulan per Work Location & Headcount Teratas
             gc_ot, gc4 = st.columns(2)
             with gc_ot:
                 df_ot_loc_month = (
@@ -2164,7 +2154,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 )
                 st.plotly_chart(fig_hc, use_container_width=True)
 
-            # Baris Bawah: Perbandingan Langsung antar Bulan per Project
             gc3, _ = st.columns(2)
             with gc3:
                 top_projects_list = (
@@ -2207,7 +2196,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 )
                 st.plotly_chart(fig_proj_month, use_container_width=True)
 
-        # --- TABEL DEBUGGING UNTUK MENGECEK SELISIH ANGKA ---
         with st.expander(
             "🔍 Cek Detail / Baris Angka Total Payment Amount", expanded=False
         ):
@@ -2226,7 +2214,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             )
             st.dataframe(debug_df, use_container_width=True)
 
-        # FORMAT KOLOM ANGKA DENGAN PEMISAH RIBUAN TITIK (.)
         display_matrix = filtered_mc.copy()
         financial_cols = [
             "Basic Salary",
@@ -2275,7 +2262,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
 
 
 # ==============================================================================
-# MODUL 4: AI HR ASSISTANT (POWERED BY GROQ & CONNECTED TO SHEETS)
+# MODUL 4: AI HR ASSISTANT (PINTAR & RINCI PER SITE & POSISI)
 # ==============================================================================
 if menu_pilihan == "🤖 AI HR Assistant":
 
@@ -2298,42 +2285,90 @@ if menu_pilihan == "🤖 AI HR Assistant":
     # --- HITUNG KONTEKS DATA REALTIME UNTUK DIBERIKAN KE AI ---
     df_emp = st.session_state.get("employees", pd.DataFrame())
 
-    # Ringkasan Karyawan
-    total_emp = len(df_emp)
+    # Filter Karyawan Aktif
     if not df_emp.empty and "Status" in df_emp.columns:
-        aktif_emp = len(df_emp[df_emp["Status"] == "Aktif"])
+        df_aktif = df_emp[df_emp["Status"] == "Aktif"].copy()
+        total_emp = len(df_emp)
+        aktif_emp = len(df_aktif)
         resign_emp = len(df_emp[df_emp["Status"] == "Resign"])
     else:
+        df_aktif = df_emp.copy() if not df_emp.empty else pd.DataFrame()
+        total_emp = len(df_emp)
         aktif_emp, resign_emp = total_emp, 0
 
-    # Ringkasan per Site / Lokasi Kerja
+    # 1. Ringkasan per Site Total
     site_summary = ""
-    if not df_emp.empty and "Site" in df_emp.columns:
-        site_counts = df_emp["Site"].astype(str).str.strip().str.upper().value_counts().to_dict()
-        site_summary = ", ".join([f"{k}: {v} orang" for k, v in site_counts.items() if k and k != "NAN"])
+    if not df_aktif.empty and "Site" in df_aktif.columns:
+        site_counts = (
+            df_aktif["Site"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            .value_counts()
+            .to_dict()
+        )
+        site_summary = ", ".join([
+            f"{k}: {v} orang"
+            for k, v in site_counts.items()
+            if k and k != "NAN"
+        ])
 
-    # Ringkasan per Cost Center / Project
+    # 2. GROUPING RINCI: SITE & POSISI (Sesuai gambar perbaikan)
+    site_posisi_summary = ""
+    if (
+        not df_aktif.empty
+        and "Site" in df_aktif.columns
+        and "Posisi" in df_aktif.columns
+    ):
+        df_grouped = (
+            df_aktif.groupby(["Site", "Posisi"])["ID"]
+            .count()
+            .reset_index(name="Jumlah")
+        )
+        grouped_items = []
+        for _, row in df_grouped.iterrows():
+            site_val = str(row["Site"]).strip().upper()
+            pos_val = str(row["Posisi"]).strip()
+            cnt_val = row["Jumlah"]
+            if site_val and site_val != "NAN" and pos_val and pos_val != "NAN":
+                grouped_items.append(f"[{site_val} - {pos_val}: {cnt_val} orang]")
+
+        site_posisi_summary = ", ".join(grouped_items)
+
+    # 3. Ringkasan per Cost Center / Project
     cc_summary = ""
-    if not df_emp.empty and "Cost Center" in df_emp.columns:
-        cc_counts = df_emp["Cost Center"].astype(str).str.strip().value_counts().head(10).to_dict()
-        cc_summary = ", ".join([f"{k}: {v} orang" for k, v in cc_counts.items() if k and k != "NAN"])
+    if not df_aktif.empty and "Cost Center" in df_aktif.columns:
+        cc_counts = (
+            df_aktif["Cost Center"]
+            .astype(str)
+            .str.strip()
+            .value_counts()
+            .head(15)
+            .to_dict()
+        )
+        cc_summary = ", ".join([
+            f"{k}: {v} orang" for k, v in cc_counts.items() if k and k != "NAN"
+        ])
 
-    # --- BUAT SYSTEM PROMPT PINTAR BERISI DATA REALTIME ---
+    # --- SYSTEM PROMPT DENGAN DATA POSISI PER SITE ---
     system_prompt_context = f"""
-    Anda adalah Asisten AI HR internal perusahaan yang cerdas dan sangat membantu.
+    Anda adalah Asisten AI HR internal perusahaan yang cerdas, akurat, dan ramah.
     Anda memiliki akses langsung ke ringkasan data realtime berikut dari aplikasi:
 
-    📊 REKAP DATABASE KARYAWAN SAAT INI:
+    📊 REKAP DATABASE KARYAWAN AKTIF:
     - Total Record Karyawan: {total_emp} orang
     - Karyawan Aktif: {aktif_emp} orang
     - Karyawan Resign: {resign_emp} orang
-    - Distribusi Site / Lokasi Kerja (misal JDC, Head Office, dll): {site_summary if site_summary else 'Data site belum diisi'}
-    - Sebaran Cost Center / Project Utama: {cc_summary if cc_summary else 'Data CC belum diisi'}
+    - Total Karyawan per Site/Lokasi: {site_summary if site_summary else 'Belum ada data'}
+    
+    🔥 RINCIAN DETAIL POSISI PER SITE (LOKASI KERJA):
+    {site_posisi_summary if site_posisi_summary else 'Belum ada data detail lokasi-posisi'}
+
+    - Sebaran Cost Center / Project: {cc_summary if cc_summary else 'Belum ada data'}
 
     PETUNJUK BALASAN:
-    1. Gunakan data di atas untuk menjawab pertanyaan pengguna terkait jumlah karyawan (termasuk lokasi spesifik seperti JDC).
-    2. Jika pengguna menanyakan jumlah karyawan pada lokasi/site tertentu, rujuklah data Distribusi Site di atas.
-    3. Jawab dengan bahasa Indonesia yang sopan, ramah, dan profesional.
+    1. Jika pengguna menanyakan jumlah posisi tertentu di site tertentu (misalnya: "posisi admin di JDC ada berapa?"), cocokkan baris lokasi JDC dan posisi Admin pada data 'RINCIAN DETAIL POSISI PER SITE' di atas lalu berikan angka pastinya.
+    2. Jawablah selalu dengan Bahasa Indonesia yang profesional, ramah, dan ringkas.
     """
 
     # Inisialisasi Chat History
@@ -2342,27 +2377,29 @@ if menu_pilihan == "🤖 AI HR Assistant":
             {
                 "role": "assistant",
                 "content": (
-                    f"Halo! Saya adalah Asisten AI HR Anda. Saya telah terhubung"
-                    f" dengan database ({aktif_emp} Karyawan Aktif). Ada yang bisa saya bantu?"
+                    f"Halo! Saya AI HR Assistant. Saya telah membaca seluruh"
+                    f" database ({aktif_emp} Karyawan Aktif). Silakan tanyakan"
+                    f" rincian jumlah karyawan per site maupun per posisinya!"
                 ),
             }
         ]
 
-    # Tampilkan seluruh riwayat chat
+    # Tampilkan riwayat chat
     for message in st.session_state.chat_messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
     # Input User
-    if prompt := st.chat_input("Ketik pertanyaan Anda (misal: 'berapa jumlah total karyawan JDC?')..."):
+    if prompt := st.chat_input(
+        "Tanyakan sesuatu (misal: 'posisi admin di JDC ada berapa?')..."
+    ):
         st.session_state.chat_messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
         with st.chat_message("assistant"):
-            with st.spinner("Menganalisis database..."):
+            with st.spinner("Mencocokkan data lokasi & posisi..."):
                 try:
-                    # Gabungkan System Prompt kontekstual dengan riwayat percakapan
                     api_messages = [
                         {"role": "system", "content": system_prompt_context}
                     ] + [
@@ -2373,7 +2410,7 @@ if menu_pilihan == "🤖 AI HR Assistant":
                     completion = client.chat.completions.create(
                         model="llama-3.3-70b-versatile",
                         messages=api_messages,
-                        temperature=0.3,
+                        temperature=0.2,
                         max_tokens=1024,
                     )
 
@@ -2385,4 +2422,4 @@ if menu_pilihan == "🤖 AI HR Assistant":
                     )
 
                 except Exception as e:
-                    st.error(f"❌ Terjadi kesalahan: {e}")
+                    st.error(f"❌ Terjadi kesalahan pada AI: {e}")
