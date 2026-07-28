@@ -71,12 +71,46 @@ if not check_password():
     st.stop()
 
 
+# --- FUNGSI PROTEKSI PASSWORD MANPOWER COST ---
+def check_manpower_access():
+    """Memeriksa otorisasi password khusus sebelum memberikan akses ke Manpower Cost Manager."""
+    if "manpower_authenticated" not in st.session_state:
+        st.session_state["manpower_authenticated"] = False
+
+    if st.session_state["manpower_authenticated"]:
+        return True
+
+    st.title("🔒 Manpower Cost Manager")
+    st.warning("Halaman ini berisi data sensitif finansial dan rahasia perusahaan.")
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        with st.form("form_manpower_auth", clear_on_submit=True):
+            st.subheader("Otorisasi Diperlukan")
+            input_pass = st.text_input("Masukkan Password Akses Manpower Cost:", type="password")
+            btn_submit = st.form_submit_button("Buka Akses Dashboard", use_container_width=True)
+
+            if btn_submit:
+                # Mengambil MANPOWER_PASSWORD dari secrets, fallback ke default jika belum diset
+                correct_pass = st.secrets.get("MANPOWER_PASSWORD", "PasswordManpower2026!")
+
+                if input_pass == correct_pass:
+                    st.session_state["manpower_authenticated"] = True
+                    st.success("Akses Diterima! Memuat data...")
+                    st.rerun()
+                else:
+                    st.error("❌ Password salah. Silakan coba lagi.")
+
+    return False
+
+
 # ==============================================================================
 # NAVIGASI & AKSES UTAMA
 # ==============================================================================
 
 if st.sidebar.button("🚪 Keluar Aplikasi"):
     st.session_state["app_password_correct"] = False
+    st.session_state["manpower_authenticated"] = False
     st.rerun()
 
 st.sidebar.markdown("---")
@@ -1634,15 +1668,27 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
 
 
 # ==============================================================================
-# MODUL 3: MANPOWER COST MANAGER
+# MODUL 3: MANPOWER COST MANAGER (DIPROTEKSI PASSWORD)
 # ==============================================================================
 if menu_pilihan == "💳 Manpower Cost Manager":
 
-    st.title("💳 Manpower Cost Manager")
-    st.caption(
-        "Modul Pengelolaan Biaya Tenaga Kerja (Manpower Cost), PPN/PPh 23, &"
-        " Invoice Detail."
-    )
+    # --- JALANKAN BARIKADE PASSWORD OTORISASI ---
+    if not check_manpower_access():
+        st.stop()  # Hentikan rendering sisa halaman jika password belum terverifikasi
+
+    # --- HEADER MODUL & TOMBOL KUNCI KEMBALI ---
+    col_mc_head, col_mc_lock = st.columns([4, 1])
+    with col_mc_head:
+        st.title("💳 Manpower Cost Manager")
+        st.caption(
+            "Modul Pengelolaan Biaya Tenaga Kerja (Manpower Cost), PPN/PPh 23, &"
+            " Invoice Detail."
+        )
+    with col_mc_lock:
+        st.write("")
+        if st.button("🔒 Kunci Modul", use_container_width=True, help="Keluar dan kunci kembali halaman ini"):
+            st.session_state["manpower_authenticated"] = False
+            st.rerun()
 
     MANPOWER_COST_HEADERS = [
         "Month",
@@ -1918,7 +1964,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     f" dengan nilai sebesar **{formatted_top_val}**."
                 )
 
-            # Baris Atas: Tren per Bulan (Diurutkan Kronologis dari Bulan Awal) & Top 10 Project
+            # Baris Atas: Tren per Bulan & Top 10 Project
             gc1, gc2 = st.columns(2)
             with gc1:
                 trend_month = (
@@ -2026,7 +2072,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 )
                 st.plotly_chart(fig_hc, use_container_width=True)
 
-            # Baris Bawah: Perbandingan Langsung (Compare) antar Bulan per Project
+            # Baris Bawah: Perbandingan Langsung antar Bulan per Project
             gc3, _ = st.columns(2)
             with gc3:
                 top_projects_list = (
