@@ -2262,7 +2262,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
 
 
 # ==============================================================================
-# MODUL 4: AI HR ASSISTANT (PINTAR & RINCI PER SITE & POSISI)
+# MODUL 4: AI HR ASSISTANT (PINTAR & BACA SELURUH COST CENTER / PROJECT)
 # ==============================================================================
 if menu_pilihan == "🤖 AI HR Assistant":
 
@@ -2313,7 +2313,7 @@ if menu_pilihan == "🤖 AI HR Assistant":
             if k and k != "NAN"
         ])
 
-    # 2. GROUPING RINCI: SITE & POSISI (Sesuai gambar perbaikan)
+    # 2. GROUPING RINCI: SITE & POSISI
     site_posisi_summary = ""
     if (
         not df_aktif.empty
@@ -2335,40 +2335,61 @@ if menu_pilihan == "🤖 AI HR Assistant":
 
         site_posisi_summary = ", ".join(grouped_items)
 
-    # 3. Ringkasan per Cost Center / Project
+    # 3. Ringkasan LENGKAP Seluruh Cost Center dari Master Karyawan (Tanpa dipotong)
     cc_summary = ""
     if not df_aktif.empty and "Cost Center" in df_aktif.columns:
-        cc_counts = (
+        df_cc_clean = (
             df_aktif["Cost Center"]
             .astype(str)
             .str.strip()
-            .value_counts()
-            .head(15)
-            .to_dict()
+            .str.upper()
+            .replace({"FKS": "FKS", "": "BELUM DIISI"})
         )
+        cc_counts = df_cc_clean.value_counts().to_dict()
         cc_summary = ", ".join([
             f"{k}: {v} orang" for k, v in cc_counts.items() if k and k != "NAN"
         ])
 
-    # --- SYSTEM PROMPT DENGAN DATA POSISI PER SITE ---
-    system_prompt_context = f"""
-    Anda adalah Asisten AI HR internal perusahaan yang cerdas, akurat, dan ramah.
-    Anda memiliki akses langsung ke ringkasan data realtime berikut dari aplikasi:
+    # 4. Ringkasan Data Project dari Tab Manpower Cost (jika terisi)
+    mp_proj_summary = ""
+    df_mc_session = st.session_state.get("df_manpower_cost", pd.DataFrame())
+    if not df_mc_session.empty and "Project" in df_mc_session.columns:
+        proj_counts = (
+            df_mc_session["Project"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            .value_counts()
+            .to_dict()
+        )
+        mp_proj_summary = ", ".join([
+            f"{k}: {v} orang" for k, v in proj_counts.items() if k and k != "NAN"
+        ])
 
-    📊 REKAP DATABASE KARYAWAN AKTIF:
+    # --- SYSTEM PROMPT LENGKAP BACA SELURUH COST CENTER & PROJECT ---
+    system_prompt_context = f"""
+    Anda adalah Asisten AI HR internal perusahaan yang cerdas, presisi, dan ramah.
+    Anda memiliki akses langsung ke data realtime database berikut:
+
+    📊 RINGKASAN UMUM:
     - Total Record Karyawan: {total_emp} orang
     - Karyawan Aktif: {aktif_emp} orang
     - Karyawan Resign: {resign_emp} orang
     - Total Karyawan per Site/Lokasi: {site_summary if site_summary else 'Belum ada data'}
-    
-    🔥 RINCIAN DETAIL POSISI PER SITE (LOKASI KERJA):
-    {site_posisi_summary if site_posisi_summary else 'Belum ada data detail lokasi-posisi'}
 
-    - Sebaran Cost Center / Project: {cc_summary if cc_summary else 'Belum ada data'}
+    🔥 RINCIAN POSISI PER SITE (LOKASI KERJA):
+    {site_posisi_summary if site_posisi_summary else 'Belum ada data detail'}
+
+    💳 SELURUH COST CENTER / PROJECT (MASTER KARYAWAN):
+    {cc_summary if cc_summary else 'Belum ada data'}
+
+    📋 DATA PROJECT (TAB MANPOWER COST):
+    {mp_proj_summary if mp_proj_summary else 'Belum ada data Manpower Cost'}
 
     PETUNJUK BALASAN:
-    1. Jika pengguna menanyakan jumlah posisi tertentu di site tertentu (misalnya: "posisi admin di JDC ada berapa?"), cocokkan baris lokasi JDC dan posisi Admin pada data 'RINCIAN DETAIL POSISI PER SITE' di atas lalu berikan angka pastinya.
-    2. Jawablah selalu dengan Bahasa Indonesia yang profesional, ramah, dan ringkas.
+    1. Jika pengguna menanyakan jumlah orang pada Cost Center atau Project tertentu (misalnya FKS, VinFast, CJ Food, dsb.), cocokkan dengan daftar "SELURUH COST CENTER / PROJECT" di atas dan sebutkan jumlahnya secara akurat.
+    2. Jika pengguna menanyakan posisi spesifik di lokasi tertentu (misal: "posisi admin di JDC"), gunakan data "RINCIAN POSISI PER SITE".
+    3. Jawab selalu dengan bahasa Indonesia yang sopan, ramah, dan profesional.
     """
 
     # Inisialisasi Chat History
@@ -2379,7 +2400,7 @@ if menu_pilihan == "🤖 AI HR Assistant":
                 "content": (
                     f"Halo! Saya AI HR Assistant. Saya telah membaca seluruh"
                     f" database ({aktif_emp} Karyawan Aktif). Silakan tanyakan"
-                    f" rincian jumlah karyawan per site maupun per posisinya!"
+                    f" jumlah karyawan berdasarkan Cost Center, Project, maupun Lokasi Site!"
                 ),
             }
         ]
@@ -2391,14 +2412,14 @@ if menu_pilihan == "🤖 AI HR Assistant":
 
     # Input User
     if prompt := st.chat_input(
-        "Tanyakan sesuatu (misal: 'posisi admin di JDC ada berapa?')..."
+        "Tanyakan sesuatu (misal: 'berapa orang yang pegang project FKS?')..."
     ):
         st.session_state.chat_messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
         with st.chat_message("assistant"):
-            with st.spinner("Mencocokkan data lokasi & posisi..."):
+            with st.spinner("Mencari data Cost Center / Project..."):
                 try:
                     api_messages = [
                         {"role": "system", "content": system_prompt_context}
