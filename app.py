@@ -2249,6 +2249,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     fig_stat_proj.update_traces(
                         textangle=0,
                         textposition="outside",
+                        textfont=dict(size=11),  # Ukuran teks diperjelas
                         hovertemplate=(
                             "<b>Project:</b> %{x}<br><b>Status:</b>"
                             " %{fullData.name}<br><b>Total Payment:</b> Rp"
@@ -2260,6 +2261,8 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                         yaxis_title="Total Payment (Rp)",
                         xaxis_tickangle=-25,
                         legend_title_text="Employment Status",
+                        margin=dict(t=60, b=50),  # Memberi margin atas ekstra
+                        yaxis=dict(cliponaxis=False), # Menjaga agar label di atas batang tidak terpotong
                     )
                     st.plotly_chart(fig_stat_proj, use_container_width=True)
 
