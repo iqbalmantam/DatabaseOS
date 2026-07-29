@@ -1650,9 +1650,17 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             aggfunc="first",
         )
 
-        matrix_df = matrix_df.reindex(
-            columns=["In", "Out", "Shift", "Status"], level=1
+        # --- PERBAIKAN TIMESHET MATRIX (TETAP MENJAGA KOLOM STATUS KOSONG) ---
+        unique_dates = df_absen_clean["Tgl_Format"].unique()
+        sub_headers = ["In", "Out", "Shift", "Status"]
+
+        # Buat struktur MultiIndex secara eksplisit untuk semua tanggal
+        full_columns = pd.MultiIndex.from_product(
+            [unique_dates, sub_headers], names=["Tgl_Format", "SubHeader"]
         )
+
+        # Paksa reindex seluruh struktur kolom agar 'Status' tidak hilang
+        matrix_df = matrix_df.reindex(columns=full_columns)
 
         matrix_df = matrix_df.fillna("-")
         matrix_df = matrix_df.map(
