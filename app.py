@@ -173,7 +173,6 @@ def load_data():
             if "Status" not in df.columns:
                 df["Status"] = "Aktif"
             
-            # Penanganan aman kolom tanggal agar data dengan nilai kosong/dihapus tidak tereliminasi
             if "Akhir Kontrak" in df.columns:
                 df["Akhir Kontrak"] = df["Akhir Kontrak"].fillna("-").astype(str)
                 df["Akhir Kontrak"] = df["Akhir Kontrak"].replace("", "-")
@@ -1618,6 +1617,14 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
         df_absen_clean["ID"] = (
             df_absen_clean["ID"].astype(str).str.strip().str.upper()
         )
+        
+        # SINKRONISASI DENGAN MASTER DATA KARYAWAN:
+        # Mengisi/Memperbaiki Nama Lengkap dari Master Karyawan jika di Data Absensi Kosong/Tidak Lengkap
+        df_master_ref = st.session_state.get("employees", pd.DataFrame())
+        if not df_master_ref.empty and "ID" in df_master_ref.columns and "Nama Lengkap" in df_master_ref.columns:
+            master_map = dict(zip(df_master_ref["ID"].astype(str).str.strip().str.upper(), df_master_ref["Nama Lengkap"].astype(str).str.strip().str.title()))
+            df_absen_clean["Nama Lengkap"] = df_absen_clean["ID"].map(master_map).fillna(df_absen_clean["Nama Lengkap"])
+
         df_absen_clean["Nama Lengkap"] = (
             df_absen_clean["Nama Lengkap"]
             .astype(str)
@@ -1673,16 +1680,13 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             aggfunc="first",
         )
 
-        # --- PERBAIKAN TIMESHET MATRIX (MENCEGAH KOLOM & NAMA KARYAWAN HILANG) ---
         unique_dates = df_absen_clean["Tgl_Format"].unique()
         sub_headers = ["In", "Out", "Shift", "Status"]
 
-        # Buat struktur MultiIndex secara eksplisit untuk semua tanggal
+        # Reindex MultiIndex Kolom Tanggal
         full_columns = pd.MultiIndex.from_product(
             [unique_dates, sub_headers], names=["Tgl_Format", "SubHeader"]
         )
-
-        # Paksa reindex seluruh struktur kolom
         matrix_df = matrix_df.reindex(columns=full_columns)
 
         matrix_df = matrix_df.fillna("-")
@@ -1692,14 +1696,13 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             )
         )
 
-        # RESET INDEX agar ID dan Nama Lengkap muncul sebagai Kolom Biasa
+        # --- PEMBAHARUAN PENTING FITUR PENCARIAN & TAMPILAN ID - NAMA LENGKAP ---
         matrix_display = matrix_df.reset_index()
 
         def apply_matrix_styles(df):
             styles_df = pd.DataFrame("", index=df.index, columns=df.columns)
 
             for col in df.columns:
-                # Memastikan kolom adalah MultiIndex sebelum mengambil sub_header
                 if isinstance(col, tuple) and len(col) > 1:
                     sub_header = col[1]
 
@@ -2233,7 +2236,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 st.plotly_chart(fig_proj_month, use_container_width=True)
 
             with gc_emp:
-                # --- GRAFIK BAR PERBANDINGAN FDW VS TDW PER PROJECT ---
                 if (
                     "Employment Status" in df_chart.columns
                     and "Project" in df_chart.columns
@@ -2247,7 +2249,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                         .replace("", "BELUM DIISI")
                     )
 
-                    # Ambil top 8 project terbesar untuk scannability
                     top_emp_projects = (
                         df_emp_chart.groupby("Project")["Parsed_Payment"]
                         .sum()
@@ -2368,7 +2369,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
 
 
 # ==============================================================================
-# MODUL 4: AI HR ASSISTANT (PINTAR & BACA SELURUH COST CENTER / PROJECT)
+# MODUL 4: AI HR ASSISTANT
 # ==============================================================================
 if menu_pilihan == "🤖 AI HR Assistant":
 
@@ -2388,10 +2389,8 @@ if menu_pilihan == "🤖 AI HR Assistant":
 
     client = Groq(api_key=groq_key)
 
-    # --- HITUNG KONTEKS DATA REALTIME UNTUK DIBERIKAN KE AI ---
     df_emp = st.session_state.get("employees", pd.DataFrame())
 
-    # Filter Karyawan Aktif
     if not df_emp.empty and "Status" in df_emp.columns:
         df_aktif = df_emp[df_emp["Status"] == "Aktif"].copy()
         total_emp = len(df_emp)
@@ -2402,7 +2401,6 @@ if menu_pilihan == "🤖 AI HR Assistant":
         total_emp = len(df_emp)
         aktif_emp, resign_emp = total_emp, 0
 
-    # 1. Ringkasan per Site Total
     site_summary = ""
     if not df_aktif.empty and "Site" in df_aktif.columns:
         site_counts = (
@@ -2419,7 +2417,6 @@ if menu_pilihan == "🤖 AI HR Assistant":
             if k and k != "NAN"
         ])
 
-    # 2. GROUPING RINCI: SITE & POSISI
     site_posisi_summary = ""
     if (
         not df_aktif.empty
@@ -2441,7 +2438,6 @@ if menu_pilihan == "🤖 AI HR Assistant":
 
         site_posisi_summary = ", ".join(grouped_items)
 
-    # 3. Ringkasan LENGKAP Seluruh Cost Center dari Master Karyawan (Tanpa dipotong)
     cc_summary = ""
     if not df_aktif.empty and "Cost Center" in df_aktif.columns:
         df_cc_clean = (
@@ -2456,7 +2452,6 @@ if menu_pilihan == "🤖 AI HR Assistant":
             f"{k}: {v} orang" for k, v in cc_counts.items() if k and k != "NAN"
         ])
 
-    # 4. Ringkasan Data Project dari Tab Manpower Cost (jika terisi)
     mp_proj_summary = ""
     df_mc_session = st.session_state.get("df_manpower_cost", pd.DataFrame())
     if not df_mc_session.empty and "Project" in df_mc_session.columns:
@@ -2472,7 +2467,6 @@ if menu_pilihan == "🤖 AI HR Assistant":
             f"{k}: {v} orang" for k, v in proj_counts.items() if k and k != "NAN"
         ])
 
-    # --- SYSTEM PROMPT LENGKAP BACA SELURUH COST CENTER & PROJECT ---
     system_prompt_context = f"""
     Anda adalah Asisten AI HR internal perusahaan yang cerdas, presisi, dan ramah.
     Anda memiliki akses langsung ke data realtime database berikut:
@@ -2493,12 +2487,10 @@ if menu_pilihan == "🤖 AI HR Assistant":
     {mp_proj_summary if mp_proj_summary else 'Belum ada data Manpower Cost'}
 
     PETUNJUK BALASAN:
-    1. Jika pengguna menanyakan jumlah orang pada Cost Center atau Project tertentu (misalnya FKS, VinFast, CJ Food, dsb.), cocokkan dengan daftar "SELURUH COST CENTER / PROJECT" di atas dan sebutkan jumlahnya secara akurat.
-    2. Jika pengguna menanyakan posisi spesifik di lokasi tertentu (misal: "posisi admin di JDC"), gunakan data "RINCIAN POSISI PER SITE".
-    3. Jawab selalu dengan bahasa Indonesia yang sopan, ramah, dan profesional.
+    1. Jika pengguna menanyakan jumlah orang pada Cost Center atau Project tertentu, cocokkan dengan daftar di atas.
+    2. Jawab selalu dengan bahasa Indonesia yang sopan, ramah, dan profesional.
     """
 
-    # Inisialisasi Chat History
     if "chat_messages" not in st.session_state:
         st.session_state.chat_messages = [
             {
@@ -2511,12 +2503,10 @@ if menu_pilihan == "🤖 AI HR Assistant":
             }
         ]
 
-    # Tampilkan riwayat chat
     for message in st.session_state.chat_messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # Input User
     if prompt := st.chat_input(
         "Tanyakan sesuatu (misal: 'berapa orang yang pegang project FKS?')..."
     ):
