@@ -1673,7 +1673,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             aggfunc="first",
         )
 
-        # --- PERBAIKAN TIMESHET MATRIX (TETAP MENJAGA KOLOM STATUS KOSONG) ---
+        # --- PERBAIKAN TIMESHET MATRIX (MENCEGAH KOLOM & NAMA KARYAWAN HILANG) ---
         unique_dates = df_absen_clean["Tgl_Format"].unique()
         sub_headers = ["In", "Out", "Shift", "Status"]
 
@@ -1682,7 +1682,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             [unique_dates, sub_headers], names=["Tgl_Format", "SubHeader"]
         )
 
-        # Paksa reindex seluruh struktur kolom agar 'Status' tidak hilang
+        # Paksa reindex seluruh struktur kolom
         matrix_df = matrix_df.reindex(columns=full_columns)
 
         matrix_df = matrix_df.fillna("-")
@@ -1692,38 +1692,43 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             )
         )
 
+        # RESET INDEX agar ID dan Nama Lengkap muncul sebagai Kolom Biasa
+        matrix_display = matrix_df.reset_index()
+
         def apply_matrix_styles(df):
             styles_df = pd.DataFrame("", index=df.index, columns=df.columns)
 
             for col in df.columns:
-                sub_header = col[1]
+                # Memastikan kolom adalah MultiIndex sebelum mengambil sub_header
+                if isinstance(col, tuple) and len(col) > 1:
+                    sub_header = col[1]
 
-                if sub_header == "Status":
-                    for idx in df.index:
-                        val_str = str(df.loc[idx, col]).strip().lower()
-                        if val_str in ["sakit", "cuti", "izin", "ijin"]:
-                            styles_df.loc[idx, col] = (
-                                "background-color: #FFC000; color: black;"
-                                " font-weight: bold;"
-                            )
-                        elif val_str in ["late", "terlambat"]:
-                            styles_df.loc[idx, col] = (
-                                "background-color: #FF0000; color: white;"
-                                " font-weight: bold;"
-                            )
-                        elif val_str in [
-                            "alpha",
-                            "mangkir",
-                            "tidak hadir",
-                        ]:
-                            styles_df.loc[idx, col] = (
-                                "background-color: #8B0000; color: white;"
-                                " font-weight: bold;"
-                            )
+                    if sub_header == "Status":
+                        for idx in df.index:
+                            val_str = str(df.loc[idx, col]).strip().lower()
+                            if val_str in ["sakit", "cuti", "izin", "ijin"]:
+                                styles_df.loc[idx, col] = (
+                                    "background-color: #FFC000; color: black;"
+                                    " font-weight: bold;"
+                                )
+                            elif val_str in ["late", "terlambat"]:
+                                styles_df.loc[idx, col] = (
+                                    "background-color: #FF0000; color: white;"
+                                    " font-weight: bold;"
+                                )
+                            elif val_str in [
+                                "alpha",
+                                "mangkir",
+                                "tidak hadir",
+                            ]:
+                                styles_df.loc[idx, col] = (
+                                    "background-color: #8B0000; color: white;"
+                                    " font-weight: bold;"
+                                )
 
             return styles_df
 
-        styled_matrix = matrix_df.style.apply(
+        styled_matrix = matrix_display.style.apply(
             apply_matrix_styles, axis=None
         ).set_properties(
             **{
@@ -2281,7 +2286,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                         textangle=0,
                         textposition="outside",
                         textfont=dict(size=11),
-                        cliponaxis=False,  # Properti ditaruh langsung di update_traces untuk mencegah error
+                        cliponaxis=False,
                         hovertemplate=(
                             "<b>Project:</b> %{x}<br><b>Status:</b>"
                             " %{fullData.name}<br><b>Total Payment:</b> Rp"
@@ -2293,7 +2298,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                         yaxis_title="Total Payment (Rp)",
                         xaxis_tickangle=-25,
                         legend_title_text="Employment Status",
-                        margin=dict(t=60, b=50),  # Memberikan margin atas yang cukup
+                        margin=dict(t=60, b=50),
                     )
                     st.plotly_chart(fig_stat_proj, use_container_width=True)
 
