@@ -448,22 +448,66 @@ if menu_pilihan == "👥 Master Data Karyawan":
 
     df_master_current = st.session_state.employees
     total_karyawan = len(df_master_current)
-    total_aktif = (
-        len(df_master_current[df_master_current["Status"] == "Aktif"])
-        if "Status" in df_master_current.columns
-        else total_karyawan
+
+    # --- Dashboard Analytics & Filter Periode (dipindah ke atas untuk sinkronisasi Metrik) ---
+    df_snap_hist = load_snapshot_data()
+    current_period = date.today().strftime("%Y-%m")
+
+    available_periods = []
+    if not df_snap_hist.empty and "Periode" in df_snap_hist.columns:
+        available_periods = sorted(
+            list(df_snap_hist["Periode"].unique()), reverse=True
+        )
+
+    realtime_option = f"{current_period} (Bulan Berjalan - Realtime)"
+    if realtime_option not in available_periods:
+        available_periods.insert(0, realtime_option)
+
+    selected_dash_period = st.selectbox(
+        "📅 Pilih Periode Dashboard:", options=available_periods, index=0
     )
-    total_resign = (
-        len(df_master_current[df_master_current["Status"] == "Resign"])
-        if "Status" in df_master_current.columns
-        else 0
-    )
+
+    if "Realtime" in selected_dash_period:
+        df_ana = st.session_state.employees.copy()
+        active_period_str = current_period
+    else:
+        df_ana = df_snap_hist[
+            df_snap_hist["Periode"] == selected_dash_period
+        ].copy()
+        active_period_str = selected_dash_period
+
+    def filter_resign_for_period(df, target_period):
+        if df.empty or "Status" not in df.columns:
+            return df
+
+        mask_aktif = df["Status"].astype(str).str.strip().isin(["Aktif", "PKWT"])
+
+        mask_resign_bulan_ini = pd.Series(False, index=df.index)
+        if "Tanggal Resign" in df.columns:
+            resign_dates = pd.to_datetime(
+                df["Tanggal Resign"], errors="coerce"
+            ).dt.strftime("%Y-%m")
+            mask_resign_bulan_ini = (
+                df["Status"].astype(str).str.strip() == "Resign"
+            ) & (resign_dates == target_period)
+
+        return df[mask_aktif | mask_resign_bulan_ini]
+
+    df_pie_chart = filter_resign_for_period(df_ana, active_period_str)
+
+    # Hitung metrik berdasarkan data periode aktif yang dipilih
+    if not df_pie_chart.empty and "Status" in df_pie_chart.columns:
+        total_aktif = len(df_pie_chart[df_pie_chart["Status"].astype(str).str.strip().isin(["Aktif", "PKWT"])])
+        total_resign = len(df_pie_chart[df_pie_chart["Status"].astype(str).str.strip() == "Resign"])
+    else:
+        total_aktif = len(df_ana)
+        total_resign = 0
 
     col_m1, col_m2, col_m3 = st.columns(3)
     with col_m1:
-        st.metric(label="Karyawan Aktif", value=total_aktif)
+        st.metric(label=f"Karyawan Aktif ({selected_dash_period})", value=total_aktif)
     with col_m2:
-        st.metric(label="Karyawan Resign", value=total_resign)
+        st.metric(label=f"Karyawan Resign ({selected_dash_period})", value=total_resign)
     with col_m3:
         st.metric(label="Total Record Data", value=total_karyawan)
 
@@ -784,52 +828,6 @@ if menu_pilihan == "👥 Master Data Karyawan":
     with st.expander(
         "📊 **Dashboard Analytics & Visualisasi Data**", expanded=True
     ):
-        df_snap_hist = load_snapshot_data()
-
-        current_period = date.today().strftime("%Y-%m")
-
-        available_periods = []
-        if not df_snap_hist.empty and "Periode" in df_snap_hist.columns:
-            available_periods = sorted(
-                list(df_snap_hist["Periode"].unique()), reverse=True
-            )
-
-        realtime_option = f"{current_period} (Bulan Berjalan - Realtime)"
-        if realtime_option not in available_periods:
-            available_periods.insert(0, realtime_option)
-
-        selected_dash_period = st.selectbox(
-            "📅 Pilih Periode Dashboard:", options=available_periods, index=0
-        )
-
-        if "Realtime" in selected_dash_period:
-            df_ana = st.session_state.employees.copy()
-            active_period_str = current_period
-        else:
-            df_ana = df_snap_hist[
-                df_snap_hist["Periode"] == selected_dash_period
-            ].copy()
-            active_period_str = selected_dash_period
-
-        def filter_resign_for_period(df, target_period):
-            if df.empty or "Status" not in df.columns:
-                return df
-
-            mask_aktif = df["Status"].astype(str).str.strip().isin(["Aktif", "PKWT"])
-
-            mask_resign_bulan_ini = pd.Series(False, index=df.index)
-            if "Tanggal Resign" in df.columns:
-                resign_dates = pd.to_datetime(
-                    df["Tanggal Resign"], errors="coerce"
-                ).dt.strftime("%Y-%m")
-                mask_resign_bulan_ini = (
-                    df["Status"].astype(str).str.strip() == "Resign"
-                ) & (resign_dates == target_period)
-
-            return df[mask_aktif | mask_resign_bulan_ini]
-
-        df_pie_chart = filter_resign_for_period(df_ana, active_period_str)
-
         if not df_ana.empty:
             tab_overview, tab_trend, tab_cost = st.tabs([
                 "📈 Ringkasan & Status",
@@ -2388,11 +2386,9 @@ if menu_pilihan == "🤖 AI HR Assistant":
                 return None, None
             
             d_str = str(date_val).strip()
-            # Abaikan jika kosong, strip, atau nan
             if not d_str or d_str in ["-", "nan", "None", "", "NaT"]:
                 return None, None
 
-            # Parsing langsung dengan format YYYY-MM-DD
             try:
                 dt_parsed = pd.to_datetime(d_str, format="%Y-%m-%d", errors="coerce")
                 if pd.notna(dt_parsed):
@@ -2400,7 +2396,6 @@ if menu_pilihan == "🤖 AI HR Assistant":
             except Exception:
                 pass
 
-            # Fallback parsing umum jika ada format lain
             dt_fallback = pd.to_datetime(d_str, errors="coerce")
             if pd.notna(dt_fallback):
                 return bulan_map.get(dt_fallback.month), int(dt_fallback.year)
