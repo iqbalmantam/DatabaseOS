@@ -1650,18 +1650,14 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             aggfunc="first",
         )
 
-        # --- PERBAIKAN TIMESHET MATRIX (TETAP MENJAGA KOLOM STATUS KOSONG) ---
         unique_dates = df_absen_clean["Tgl_Format"].unique()
         sub_headers = ["In", "Out", "Shift", "Status"]
 
-        # Buat struktur MultiIndex secara eksplisit untuk semua tanggal
         full_columns = pd.MultiIndex.from_product(
             [unique_dates, sub_headers], names=["Tgl_Format", "SubHeader"]
         )
 
-        # Paksa reindex seluruh struktur kolom agar 'Status' tidak hilang
         matrix_df = matrix_df.reindex(columns=full_columns)
-
         matrix_df = matrix_df.fillna("-")
         matrix_df = matrix_df.map(
             lambda x: (
@@ -2205,7 +2201,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 st.plotly_chart(fig_proj_month, use_container_width=True)
 
             with gc_emp:
-                # --- GRAFIK BAR PERBANDINGAN FDW VS TDW PER PROJECT ---
                 if (
                     "Employment Status" in df_chart.columns
                     and "Project" in df_chart.columns
@@ -2219,7 +2214,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                         .replace("", "BELUM DIISI")
                     )
 
-                    # Ambil top 8 project terbesar untuk scannability
                     top_emp_projects = (
                         df_emp_chart.groupby("Project")["Parsed_Payment"]
                         .sum()
@@ -2258,7 +2252,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                         textangle=0,
                         textposition="outside",
                         textfont=dict(size=11),
-                        cliponaxis=False,  # Properti ditaruh langsung di update_traces untuk mencegah error
+                        cliponaxis=False,
                         hovertemplate=(
                             "<b>Project:</b> %{x}<br><b>Status:</b>"
                             " %{fullData.name}<br><b>Total Payment:</b> Rp"
@@ -2270,7 +2264,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                         yaxis_title="Total Payment (Rp)",
                         xaxis_tickangle=-25,
                         legend_title_text="Employment Status",
-                        margin=dict(t=60, b=50),  # Memberikan margin atas yang cukup
+                        margin=dict(t=60, b=50),
                     )
                     st.plotly_chart(fig_stat_proj, use_container_width=True)
 
@@ -2340,7 +2334,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
 
 
 # ==============================================================================
-# MODUL 4: AI HR ASSISTANT (PINTAR, BACA RINCIAN RESIGN & COST CENTER)
+# MODUL 4: AI HR ASSISTANT (SOLUSI PARSING TANGGAL RESIGN TINGKAT TINGGI)
 # ==============================================================================
 if menu_pilihan == "🤖 AI HR Assistant":
 
@@ -2365,8 +2359,12 @@ if menu_pilihan == "🤖 AI HR Assistant":
 
     # Filter Karyawan Aktif & Resign
     if not df_emp.empty and "Status" in df_emp.columns:
-        df_aktif = df_emp[df_emp["Status"] == "Aktif"].copy()
-        df_resign = df_emp[df_emp["Status"] == "Resign"].copy()
+        df_aktif = df_emp[
+            df_emp["Status"].astype(str).str.strip().str.title() == "Aktif"
+        ].copy()
+        df_resign = df_emp[
+            df_emp["Status"].astype(str).str.strip().str.title() == "Resign"
+        ].copy()
         total_emp = len(df_emp)
         aktif_emp = len(df_aktif)
         resign_emp = len(df_resign)
@@ -2376,13 +2374,10 @@ if menu_pilihan == "🤖 AI HR Assistant":
         total_emp = len(df_emp)
         aktif_emp, resign_emp = total_emp, 0
 
-    # 1. Ringkasan Resign per Bulan
+    # 1. PARSING TANGGAL RESIGN LEBIH TANGGUH (MULTI-FORMAT & FALLBACK)
     resign_monthly_summary = ""
     if not df_resign.empty and "Tanggal Resign" in df_resign.columns:
         df_resign_clean = df_resign.copy()
-        df_resign_clean["Resign_Dt"] = pd.to_datetime(
-            df_resign_clean["Tanggal Resign"], errors="coerce"
-        )
 
         bulan_map = {
             1: "Januari",
@@ -2399,25 +2394,65 @@ if menu_pilihan == "🤖 AI HR Assistant":
             12: "Desember",
         }
 
-        df_resign_clean["Bulan_Resign"] = df_resign_clean["Resign_Dt"].dt.month.map(
-            bulan_map
-        )
-        df_resign_clean["Tahun_Resign"] = df_resign_clean["Resign_Dt"].dt.year
+        # Fungsi pembantu ekstrak Bulan & Tahun dari berbagai format String
+        def parse_month_year(date_val):
+            if pd.isna(date_val):
+                return None, None
+            d_str = str(date_val).strip()
+            if not d_str or d_str in ["-", "nan", "None", ""]:
+                return None, None
 
-        resign_counts = (
-            df_resign_clean.groupby(["Bulan_Resign", "Tahun_Resign"])
-            .size()
-            .reset_index(name="Jumlah")
+            # Coba konversi via pandas datetime
+            try:
+                dt = pd.to_datetime(d_str, dayfirst=True, errors="coerce")
+                if pd.notna(dt):
+                    return bulan_map.get(dt.month), dt.year
+            except Exception:
+                pass
+
+            # Fallback jika string berformat YYYY-MM-DD
+            match_iso = re.search(r"(\d{4})[-/](\d{1,2})", d_str)
+            if match_iso:
+                yr = int(match_iso.group(1))
+                mo = int(match_iso.group(2))
+                if 1 <= mo <= 12:
+                    return bulan_map.get(mo), yr
+
+            # Fallback jika string berformat DD-MM-YYYY
+            match_dmy = re.search(r"(\d{1,2})[-/](\d{1,2})[-/](\d{4})", d_str)
+            if match_dmy:
+                mo = int(match_dmy.group(2))
+                yr = int(match_dmy.group(3))
+                if 1 <= mo <= 12:
+                    return bulan_map.get(mo), yr
+
+            return None, None
+
+        parsed_results = df_resign_clean["Tanggal Resign"].apply(
+            parse_month_year
+        )
+        df_resign_clean["Bulan_Resign"] = [r[0] for r in parsed_results]
+        df_resign_clean["Tahun_Resign"] = [r[1] for r in parsed_results]
+
+        # Filter hanya yang berhasil di-parse
+        df_resign_parsed = df_resign_clean.dropna(
+            subset=["Bulan_Resign", "Tahun_Resign"]
         )
 
-        items_resign = []
-        for _, r in resign_counts.iterrows():
-            if pd.notna(r["Bulan_Resign"]):
+        if not df_resign_parsed.empty:
+            resign_counts = (
+                df_resign_parsed.groupby(["Bulan_Resign", "Tahun_Resign"])
+                .size()
+                .reset_index(name="Jumlah")
+            )
+
+            items_resign = []
+            for _, r in resign_counts.iterrows():
                 items_resign.append(
                     f"{r['Bulan_Resign']} {int(r['Tahun_Resign'])}: {r['Jumlah']} orang"
                 )
 
-        resign_monthly_summary = ", ".join(items_resign)
+            resign_monthly_summary = ", ".join(items_resign)
 
     # 2. Ringkasan per Site Total
     site_summary = ""
@@ -2489,16 +2524,16 @@ if menu_pilihan == "🤖 AI HR Assistant":
             f"{k}: {v} orang" for k, v in proj_counts.items() if k and k != "NAN"
         ])
 
-    # --- SYSTEM PROMPT LENGKAP BACA SELURUH COST CENTER & RINCIAN RESIGN ---
+    # --- SYSTEM PROMPT DENGAN DATA KONTEKS REALTIME ---
     system_prompt_context = f"""
     Anda adalah Asisten AI HR internal perusahaan yang cerdas, presisi, dan ramah.
     Anda memiliki akses langsung ke data realtime database berikut:
 
-    📊 RINGKASAN UMUM:
-    - Total Record Karyawan: {total_emp} orang
+    📊 RINGKASAN UMUM DATABASE KARYAWAN:
+    - Total Record Data Karyawan: {total_emp} orang
     - Karyawan Aktif: {aktif_emp} orang
     - Total Karyawan Resign: {resign_emp} orang
-    - Rincian Resign per Bulan: {resign_monthly_summary if resign_monthly_summary else 'Tidak ada data rincian bulan resign'}
+    - Rincian Resign per Bulan (SANGAT PENTING): {resign_monthly_summary if resign_monthly_summary else f'Total {resign_emp} orang resign (rincian tanggal tidak terisi dengan benar di sheet)'}
     - Total Karyawan per Site/Lokasi: {site_summary if site_summary else 'Belum ada data'}
 
     🔥 RINCIAN POSISI PER SITE (LOKASI KERJA):
@@ -2510,11 +2545,10 @@ if menu_pilihan == "🤖 AI HR Assistant":
     📋 DATA PROJECT (TAB MANPOWER COST):
     {mp_proj_summary if mp_proj_summary else 'Belum ada data Manpower Cost'}
 
-    PETUNJUK BALASAN:
-    1. Jika pengguna menanyakan jumlah karyawan resign pada bulan tertentu (misal: Juni), lihat bagian "Rincian Resign per Bulan" dan jawab secara akurat.
-    2. Jika pengguna menanyakan jumlah orang pada Cost Center atau Project tertentu (misalnya FKS, VinFast, CJ Food, dsb.), cocokkan dengan daftar "SELURUH COST CENTER / PROJECT" di atas dan sebutkan jumlahnya.
-    3. Jika pengguna menanyakan posisi spesifik di lokasi tertentu (misal: "posisi admin di JDC"), gunakan data "RINCIAN POSISI PER SITE".
-    4. Jawab selalu dengan bahasa Indonesia yang sopan, ramah, dan profesional.
+    PETUNJUK BALASAN DENGAN PRIORITAS TINGGI:
+    1. Jika pengguna menanyakan jumlah karyawan resign pada bulan tertentu (misal: Juli, Juni, dst.), BACA bagian "Rincian Resign per Bulan" dan jawab angka pasti untuk bulan tersebut.
+    2. Jika pengguna menanyakan jumlah orang pada Cost Center atau Project tertentu, sebutkan jumlahnya sesuai data di atas.
+    3. Jawab selalu menggunakan bahasa Indonesia yang sopan, ramah, dan profesional.
     """
 
     # Inisialisasi Chat History
@@ -2525,7 +2559,7 @@ if menu_pilihan == "🤖 AI HR Assistant":
                 "content": (
                     f"Halo! Saya AI HR Assistant. Saya telah membaca seluruh"
                     f" database ({aktif_emp} Karyawan Aktif & {resign_emp} Karyawan Resign). Silakan tanyakan"
-                    f" jumlah karyawan berdasarkan Cost Center, Project, Lokasi Site, maupun Rincian Resign!"
+                    f" jumlah karyawan berdasarkan Cost Center, Project, Lokasi Site, maupun Rincian Resign Bulanan!"
                 ),
             }
         ]
@@ -2537,7 +2571,7 @@ if menu_pilihan == "🤖 AI HR Assistant":
 
     # Input User
     if prompt := st.chat_input(
-        "Tanyakan sesuatu (misal: 'berapa orang yang resign di bulan juni?')..."
+        "Tanyakan sesuatu (misal: 'berapa orang yang resign di bulan juli?')..."
     ):
         st.session_state.chat_messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
