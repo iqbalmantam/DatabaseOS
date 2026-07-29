@@ -172,8 +172,20 @@ def load_data():
                 df["Site"] = ""
             if "Status" not in df.columns:
                 df["Status"] = "Aktif"
+            
+            # Penanganan aman kolom tanggal agar data dengan nilai kosong/dihapus tidak tereliminasi
+            if "Akhir Kontrak" in df.columns:
+                df["Akhir Kontrak"] = df["Akhir Kontrak"].fillna("-").astype(str)
+                df["Akhir Kontrak"] = df["Akhir Kontrak"].replace("", "-")
+            else:
+                df["Akhir Kontrak"] = "-"
+
             if "Tanggal Resign" not in df.columns:
                 df["Tanggal Resign"] = "-"
+            else:
+                df["Tanggal Resign"] = df["Tanggal Resign"].fillna("-").astype(str)
+                df["Tanggal Resign"] = df["Tanggal Resign"].replace("", "-")
+
             if "Terakhir Diperbarui" not in df.columns:
                 df["Terakhir Diperbarui"] = str(date.today())
         return df if df is not None else pd.DataFrame()
@@ -189,8 +201,19 @@ def load_data():
                     df["Site"] = ""
                 if "Status" not in df.columns:
                     df["Status"] = "Aktif"
+                
+                if "Akhir Kontrak" in df.columns:
+                    df["Akhir Kontrak"] = df["Akhir Kontrak"].fillna("-").astype(str)
+                    df["Akhir Kontrak"] = df["Akhir Kontrak"].replace("", "-")
+                else:
+                    df["Akhir Kontrak"] = "-"
+
                 if "Tanggal Resign" not in df.columns:
                     df["Tanggal Resign"] = "-"
+                else:
+                    df["Tanggal Resign"] = df["Tanggal Resign"].fillna("-").astype(str)
+                    df["Tanggal Resign"] = df["Tanggal Resign"].replace("", "-")
+
                 if "Terakhir Diperbarui" not in df.columns:
                     df["Terakhir Diperbarui"] = str(date.today())
             return df if df is not None else pd.DataFrame()
@@ -628,7 +651,7 @@ if menu_pilihan == "👥 Master Data Karyawan":
                                 cols[3],
                             )
                             join_d = cols[4] if len(cols) > 4 else ""
-                            end_d = cols[5] if len(cols) > 5 else ""
+                            end_d = cols[5] if len(cols) > 5 else "-"
                             resign_d = cols[6] if len(cols) > 6 else "-"
                             site_val = cols[7] if len(cols) > 7 else ""
                             status_val = (
@@ -1120,7 +1143,7 @@ if menu_pilihan == "👥 Master Data Karyawan":
                     value=row["Tanggal Bergabung"],
                 )
                 e_end = st.text_input(
-                    "Akhir Kontrak (YYYY-MM-DD)", value=row["Akhir Kontrak"]
+                    "Akhir Kontrak (YYYY-MM-DD)", value=row.get("Akhir Kontrak", "-")
                 )
                 e_site = st.text_input(
                     "Site / Lokasi Kerja", value=row.get("Site", "")
