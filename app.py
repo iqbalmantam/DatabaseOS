@@ -477,7 +477,6 @@ if menu_pilihan == "👥 Master Data Karyawan":
             st.session_state.employees = load_data()
             st.rerun()
 
-        # 1. Tambah Karyawan Baru
         with st.sidebar.expander("➕ Tambah Karyawan Baru", expanded=False):
             with st.form("add_employee_form", clear_on_submit=True):
                 auto_id = generate_next_id()
@@ -545,7 +544,6 @@ if menu_pilihan == "👥 Master Data Karyawan":
                         )
                         st.rerun()
 
-        # 2. Bulk Import Data Master
         with st.sidebar.expander("📥 Import Banyak Data", expanded=False):
             import_type = st.radio(
                 "Metode Import:", ["File CSV", "Tempel Teks (Excel/TSV)"]
@@ -664,7 +662,6 @@ if menu_pilihan == "👥 Master Data Karyawan":
                         )
                         st.rerun()
 
-        # 3. KUNCI & HAPUS DATA SNAPSHOT BULANAN
         with st.sidebar.expander(
             "📸 Freeze / Snapshot Bulanan", expanded=False
         ):
@@ -756,7 +753,6 @@ if menu_pilihan == "👥 Master Data Karyawan":
                     except Exception as e:
                         st.error(f"Gagal menghapus snapshot: {e}")
 
-        # Ekspor Database
         st.sidebar.markdown("---")
         st.sidebar.subheader("📤 Ekspor Database")
         csv_data = (
@@ -780,13 +776,11 @@ if menu_pilihan == "👥 Master Data Karyawan":
             use_container_width=True,
         )
 
-    # --- HALAMAN UTAMA MASTER ---
     if is_admin:
         st.info("🔓 **Mode Akses:** Administrator")
     else:
         st.info("👁️ **Mode Akses:** Umum / Guest (View Only)")
 
-    # --- DASHBOARD ANALYTICS ---
     with st.expander(
         "📊 **Dashboard Analytics & Visualisasi Data**", expanded=True
     ):
@@ -1005,7 +999,6 @@ if menu_pilihan == "👥 Master Data Karyawan":
 
     st.divider()
 
-    # --- FITUR PENCARIAN & FILTER MASTER ---
     col_mode, col_cat, col_src = st.columns([1.5, 1.5, 3])
     with col_mode:
         view_mode = st.selectbox(
@@ -1089,7 +1082,6 @@ if menu_pilihan == "👥 Master Data Karyawan":
     else:
         st.dataframe(df_display, use_container_width=True)
 
-    # Edit Data
     if (
         is_admin
         and view_mode == "Master Real-time"
@@ -2334,7 +2326,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
 
 
 # ==============================================================================
-# MODUL 4: AI HR ASSISTANT (SOLUSI PARSING TANGGAL RESIGN TINGKAT TINGGI)
+# MODUL 4: AI HR ASSISTANT
 # ==============================================================================
 if menu_pilihan == "🤖 AI HR Assistant":
 
@@ -2354,10 +2346,8 @@ if menu_pilihan == "🤖 AI HR Assistant":
 
     client = Groq(api_key=groq_key)
 
-    # --- HITUNG KONTEKS DATA REALTIME UNTUK DIBERIKAN KE AI ---
     df_emp = st.session_state.get("employees", pd.DataFrame())
 
-    # Filter Karyawan Aktif & Resign
     if not df_emp.empty and "Status" in df_emp.columns:
         df_aktif = df_emp[
             df_emp["Status"].astype(str).str.strip().str.title() == "Aktif"
@@ -2374,7 +2364,6 @@ if menu_pilihan == "🤖 AI HR Assistant":
         total_emp = len(df_emp)
         aktif_emp, resign_emp = total_emp, 0
 
-    # 1. PARSING TANGGAL RESIGN LEBIH TANGGUH (MULTI-FORMAT & FALLBACK)
     resign_monthly_summary = ""
     if not df_resign.empty and "Tanggal Resign" in df_resign.columns:
         df_resign_clean = df_resign.copy()
@@ -2394,37 +2383,57 @@ if menu_pilihan == "🤖 AI HR Assistant":
             12: "Desember",
         }
 
-        # Fungsi pembantu ekstrak Bulan & Tahun dari berbagai format String
         def parse_month_year(date_val):
             if pd.isna(date_val):
                 return None, None
+            try:
+                val_float = float(date_val)
+                if val_float > 30000:
+                    dt_excel = pd.to_datetime(
+                        val_float, unit="D", origin="1899-12-30", errors="coerce"
+                    )
+                    if pd.notna(dt_excel):
+                        return bulan_map.get(dt_excel.month), dt_excel.year
+            except (ValueError, TypeError):
+                pass
+
             d_str = str(date_val).strip()
             if not d_str or d_str in ["-", "nan", "None", ""]:
                 return None, None
 
-            # Coba konversi via pandas datetime
+            if d_str.replace(".", "", 1).isdigit():
+                try:
+                    dt_excel = pd.to_datetime(
+                        float(d_str),
+                        unit="D",
+                        origin="1899-12-30",
+                        errors="coerce",
+                    )
+                    if pd.notna(dt_excel):
+                        return bulan_map.get(dt_excel.month), dt_excel.year
+                except Exception:
+                    pass
+
+            for fmt in (
+                "%Y-%m-%d",
+                "%d-%m-%Y",
+                "%Y/%m/%d",
+                "%d/%m/%Y",
+                "%m/%d/%Y",
+            ):
+                try:
+                    dt = pd.to_datetime(d_str, format=fmt, errors="coerce")
+                    if pd.notna(dt):
+                        return bulan_map.get(dt.month), dt.year
+                except Exception:
+                    continue
+
             try:
-                dt = pd.to_datetime(d_str, dayfirst=True, errors="coerce")
+                dt = pd.to_datetime(d_str, errors="coerce")
                 if pd.notna(dt):
                     return bulan_map.get(dt.month), dt.year
             except Exception:
                 pass
-
-            # Fallback jika string berformat YYYY-MM-DD
-            match_iso = re.search(r"(\d{4})[-/](\d{1,2})", d_str)
-            if match_iso:
-                yr = int(match_iso.group(1))
-                mo = int(match_iso.group(2))
-                if 1 <= mo <= 12:
-                    return bulan_map.get(mo), yr
-
-            # Fallback jika string berformat DD-MM-YYYY
-            match_dmy = re.search(r"(\d{1,2})[-/](\d{1,2})[-/](\d{4})", d_str)
-            if match_dmy:
-                mo = int(match_dmy.group(2))
-                yr = int(match_dmy.group(3))
-                if 1 <= mo <= 12:
-                    return bulan_map.get(mo), yr
 
             return None, None
 
@@ -2434,7 +2443,6 @@ if menu_pilihan == "🤖 AI HR Assistant":
         df_resign_clean["Bulan_Resign"] = [r[0] for r in parsed_results]
         df_resign_clean["Tahun_Resign"] = [r[1] for r in parsed_results]
 
-        # Filter hanya yang berhasil di-parse
         df_resign_parsed = df_resign_clean.dropna(
             subset=["Bulan_Resign", "Tahun_Resign"]
         )
@@ -2445,16 +2453,13 @@ if menu_pilihan == "🤖 AI HR Assistant":
                 .size()
                 .reset_index(name="Jumlah")
             )
-
             items_resign = []
             for _, r in resign_counts.iterrows():
                 items_resign.append(
                     f"{r['Bulan_Resign']} {int(r['Tahun_Resign'])}: {r['Jumlah']} orang"
                 )
-
             resign_monthly_summary = ", ".join(items_resign)
 
-    # 2. Ringkasan per Site Total
     site_summary = ""
     if not df_aktif.empty and "Site" in df_aktif.columns:
         site_counts = (
@@ -2471,7 +2476,6 @@ if menu_pilihan == "🤖 AI HR Assistant":
             if k and k != "NAN"
         ])
 
-    # 3. GROUPING RINCI: SITE & POSISI
     site_posisi_summary = ""
     if (
         not df_aktif.empty
@@ -2490,10 +2494,8 @@ if menu_pilihan == "🤖 AI HR Assistant":
             cnt_val = row["Jumlah"]
             if site_val and site_val != "NAN" and pos_val and pos_val != "NAN":
                 grouped_items.append(f"[{site_val} - {pos_val}: {cnt_val} orang]")
-
         site_posisi_summary = ", ".join(grouped_items)
 
-    # 4. Ringkasan LENGKAP Seluruh Cost Center dari Master Karyawan
     cc_summary = ""
     if not df_aktif.empty and "Cost Center" in df_aktif.columns:
         df_cc_clean = (
@@ -2501,14 +2503,13 @@ if menu_pilihan == "🤖 AI HR Assistant":
             .astype(str)
             .str.strip()
             .str.upper()
-            .replace({"FKS": "FKS", "": "BELUM DIISI"})
+            .replace({"": "BELUM DIISI"})
         )
         cc_counts = df_cc_clean.value_counts().to_dict()
         cc_summary = ", ".join([
             f"{k}: {v} orang" for k, v in cc_counts.items() if k and k != "NAN"
         ])
 
-    # 5. Ringkasan Data Project dari Tab Manpower Cost
     mp_proj_summary = ""
     df_mc_session = st.session_state.get("df_manpower_cost", pd.DataFrame())
     if not df_mc_session.empty and "Project" in df_mc_session.columns:
@@ -2524,7 +2525,6 @@ if menu_pilihan == "🤖 AI HR Assistant":
             f"{k}: {v} orang" for k, v in proj_counts.items() if k and k != "NAN"
         ])
 
-    # --- SYSTEM PROMPT DENGAN DATA KONTEKS REALTIME ---
     system_prompt_context = f"""
     Anda adalah Asisten AI HR internal perusahaan yang cerdas, presisi, dan ramah.
     Anda memiliki akses langsung ke data realtime database berikut:
@@ -2533,7 +2533,7 @@ if menu_pilihan == "🤖 AI HR Assistant":
     - Total Record Data Karyawan: {total_emp} orang
     - Karyawan Aktif: {aktif_emp} orang
     - Total Karyawan Resign: {resign_emp} orang
-    - Rincian Resign per Bulan (SANGAT PENTING): {resign_monthly_summary if resign_monthly_summary else f'Total {resign_emp} orang resign (rincian tanggal tidak terisi dengan benar di sheet)'}
+    - Rincian Resign per Bulan (SANGAT PENTING): {resign_monthly_summary if resign_monthly_summary else f'Total {resign_emp} orang resign'}
     - Total Karyawan per Site/Lokasi: {site_summary if site_summary else 'Belum ada data'}
 
     🔥 RINCIAN POSISI PER SITE (LOKASI KERJA):
@@ -2547,11 +2547,9 @@ if menu_pilihan == "🤖 AI HR Assistant":
 
     PETUNJUK BALASAN DENGAN PRIORITAS TINGGI:
     1. Jika pengguna menanyakan jumlah karyawan resign pada bulan tertentu (misal: Juli, Juni, dst.), BACA bagian "Rincian Resign per Bulan" dan jawab angka pasti untuk bulan tersebut.
-    2. Jika pengguna menanyakan jumlah orang pada Cost Center atau Project tertentu, sebutkan jumlahnya sesuai data di atas.
-    3. Jawab selalu menggunakan bahasa Indonesia yang sopan, ramah, dan profesional.
+    2. Jawab selalu menggunakan bahasa Indonesia yang sopan, ramah, dan profesional.
     """
 
-    # Inisialisasi Chat History
     if "chat_messages" not in st.session_state:
         st.session_state.chat_messages = [
             {
@@ -2564,14 +2562,12 @@ if menu_pilihan == "🤖 AI HR Assistant":
             }
         ]
 
-    # Tampilkan riwayat chat
     for message in st.session_state.chat_messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # Input User
     if prompt := st.chat_input(
-        "Tanyakan sesuatu (misal: 'berapa orang yang resign di bulan juli?')..."
+        "Tanyakan sesuatu (misal: 'berapa orang yang resign di bulan juni?')..."
     ):
         st.session_state.chat_messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
@@ -2596,7 +2592,6 @@ if menu_pilihan == "🤖 AI HR Assistant":
 
                     response_text = completion.choices[0].message.content
                     st.markdown(response_text)
-
                     st.session_state.chat_messages.append(
                         {"role": "assistant", "content": response_text}
                     )
