@@ -2386,60 +2386,28 @@ if menu_pilihan == "🤖 AI HR Assistant":
         def parse_month_year(date_val):
             if pd.isna(date_val):
                 return None, None
-            try:
-                val_float = float(date_val)
-                if val_float > 30000:
-                    dt_excel = pd.to_datetime(
-                        val_float, unit="D", origin="1899-12-30", errors="coerce"
-                    )
-                    if pd.notna(dt_excel):
-                        return bulan_map.get(dt_excel.month), dt_excel.year
-            except (ValueError, TypeError):
-                pass
-
+            
             d_str = str(date_val).strip()
-            if not d_str or d_str in ["-", "nan", "None", ""]:
+            # Abaikan jika kosong, strip, atau nan
+            if not d_str or d_str in ["-", "nan", "None", "", "NaT"]:
                 return None, None
 
-            if d_str.replace(".", "", 1).isdigit():
-                try:
-                    dt_excel = pd.to_datetime(
-                        float(d_str),
-                        unit="D",
-                        origin="1899-12-30",
-                        errors="coerce",
-                    )
-                    if pd.notna(dt_excel):
-                        return bulan_map.get(dt_excel.month), dt_excel.year
-                except Exception:
-                    pass
-
-            for fmt in (
-                "%Y-%m-%d",
-                "%d-%m-%Y",
-                "%Y/%m/%d",
-                "%d/%m/%Y",
-                "%m/%d/%Y",
-            ):
-                try:
-                    dt = pd.to_datetime(d_str, format=fmt, errors="coerce")
-                    if pd.notna(dt):
-                        return bulan_map.get(dt.month), dt.year
-                except Exception:
-                    continue
-
+            # Parsing langsung dengan format YYYY-MM-DD
             try:
-                dt = pd.to_datetime(d_str, errors="coerce")
-                if pd.notna(dt):
-                    return bulan_map.get(dt.month), dt.year
+                dt_parsed = pd.to_datetime(d_str, format="%Y-%m-%d", errors="coerce")
+                if pd.notna(dt_parsed):
+                    return bulan_map.get(dt_parsed.month), int(dt_parsed.year)
             except Exception:
                 pass
 
+            # Fallback parsing umum jika ada format lain
+            dt_fallback = pd.to_datetime(d_str, errors="coerce")
+            if pd.notna(dt_fallback):
+                return bulan_map.get(dt_fallback.month), int(dt_fallback.year)
+
             return None, None
 
-        parsed_results = df_resign_clean["Tanggal Resign"].apply(
-            parse_month_year
-        )
+        parsed_results = df_resign_clean["Tanggal Resign"].apply(parse_month_year)
         df_resign_clean["Bulan_Resign"] = [r[0] for r in parsed_results]
         df_resign_clean["Tahun_Resign"] = [r[1] for r in parsed_results]
 
