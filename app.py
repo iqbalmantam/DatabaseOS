@@ -172,7 +172,7 @@ def load_data():
                 df["Site"] = ""
             if "Status" not in df.columns:
                 df["Status"] = "Aktif"
-            
+
             if "Akhir Kontrak" in df.columns:
                 df["Akhir Kontrak"] = df["Akhir Kontrak"].fillna("-").astype(str)
                 df["Akhir Kontrak"] = df["Akhir Kontrak"].replace("", "-")
@@ -200,7 +200,7 @@ def load_data():
                     df["Site"] = ""
                 if "Status" not in df.columns:
                     df["Status"] = "Aktif"
-                
+
                 if "Akhir Kontrak" in df.columns:
                     df["Akhir Kontrak"] = df["Akhir Kontrak"].fillna("-").astype(str)
                     df["Akhir Kontrak"] = df["Akhir Kontrak"].replace("", "-")
@@ -1612,110 +1612,187 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
         )
     else:
         col_f_site, col_f_search = st.columns([1, 2])
-        
+
         with col_f_site:
-            sites_available = df_absen["Site"].dropna().astype(str).unique() if not df_absen.empty else []
+            sites_available = (
+                df_absen["Site"].dropna().astype(str).unique()
+                if not df_absen.empty
+                else []
+            )
             if "Site" in df_master_all.columns:
-                sites_available = list(set(sites_available).union(set(df_master_all["Site"].dropna().astype(str).unique())))
-            
-            list_site = ["Semua Site"] + sorted([s for s in sites_available if s.strip() != "" and s.strip().lower() != "nan"])
+                sites_available = list(
+                    set(sites_available).union(
+                        set(df_master_all["Site"].dropna().astype(str).unique())
+                    )
+                )
+
+            list_site = ["Semua Site"] + sorted([
+                s
+                for s in sites_available
+                if s.strip() != "" and s.strip().lower() != "nan"
+            ])
             selected_site = st.selectbox("Tampilkan Site:", list_site)
 
         with col_f_search:
-            search_timesheet = st.text_input("🔍 Cari Nama Karyawan / ID di Timesheet:", "", placeholder="Contoh: Ade / OS26829")
+            search_timesheet = st.text_input(
+                "🔍 Cari Nama Karyawan / ID di Timesheet:",
+                "",
+                placeholder="Contoh: Ade / OS26829",
+            )
 
-        # AMBIL DATA MASTER
-        df_master_clean = df_master_all.copy() if not df_master_all.empty else pd.DataFrame(columns=["ID", "Nama Lengkap", "Site"])
+        # 1. PERSIAPAN MASTER & ABSENSI DATA
+        df_master_clean = (
+            df_master_all.copy()
+            if not df_master_all.empty
+            else pd.DataFrame(columns=["ID", "Nama Lengkap", "Site"])
+        )
         if "ID" in df_master_clean.columns:
-            df_master_clean["ID"] = df_master_clean["ID"].astype(str).str.strip().str.upper()
+            df_master_clean["ID"] = (
+                df_master_clean["ID"].astype(str).str.strip().str.upper()
+            )
         if "Nama Lengkap" in df_master_clean.columns:
-            df_master_clean["Nama Lengkap"] = df_master_clean["Nama Lengkap"].astype(str).str.strip().str.title()
+            df_master_clean["Nama Lengkap"] = (
+                df_master_clean["Nama Lengkap"]
+                .astype(str)
+                .str.strip()
+                .str.title()
+            )
 
-        df_absen_clean = df_absen.copy() if not df_absen.empty else pd.DataFrame()
+        df_absen_clean = (
+            df_absen.copy() if not df_absen.empty else pd.DataFrame()
+        )
         if "ID" in df_absen_clean.columns:
-            df_absen_clean["ID"] = df_absen_clean["ID"].astype(str).str.strip().str.upper()
+            df_absen_clean["ID"] = (
+                df_absen_clean["ID"].astype(str).str.strip().str.upper()
+            )
 
-        # Update Nama Lengkap dari Master
-        master_name_map = dict(zip(df_master_clean["ID"], df_master_clean["Nama Lengkap"]))
-        if "ID" in df_absen_clean.columns:
-            df_absen_clean["Nama Lengkap"] = df_absen_clean["ID"].map(master_name_map).fillna(df_absen_clean.get("Nama Lengkap", ""))
-
-        # FUNGSI EXTRACTION KHUSUS UNTUK MEMISAHKAN JAM DAN SHIFT (SEPERTI "22:40 M")
+        # Pemisahan Otomatis jika format jam menyatu (misal "22:40 M")
         def split_time_and_shift(row):
             out_val = str(row.get("Out", "")).strip()
             shift_val = str(row.get("Shift", "")).strip()
-            
+
             match = re.search(r"(\d{1,2}:\d{2})\s*([A-Za-z0-9]+)?", out_val)
             if match:
                 row["Out"] = match.group(1)
-                if match.group(2) and (shift_val == "" or shift_val == "-" or shift_val.lower() == "nan"):
+                if match.group(2) and (
+                    shift_val == ""
+                    or shift_val == "-"
+                    or shift_val.lower() == "nan"
+                ):
                     row["Shift"] = match.group(2)
             return row
 
         if not df_absen_clean.empty:
-            df_absen_clean = df_absen_clean.apply(split_time_and_shift, axis=1)
+            df_absen_clean = df_absen_clean.apply(
+                split_time_and_shift, axis=1
+            )
 
-        # Kumpulkan seluruh ID
-        master_tuples = list(zip(df_master_clean["ID"], df_master_clean["Nama Lengkap"])) if not df_master_clean.empty else []
-        absen_tuples = list(zip(df_absen_clean["ID"], df_absen_clean["Nama Lengkap"])) if not df_absen_clean.empty else []
-        all_emp_tuples = list(set(master_tuples + absen_tuples))
-        all_emp_index = pd.MultiIndex.from_tuples(all_emp_tuples, names=["ID", "Nama Lengkap"])
+        # Mapping Nama dari Master agar Konsisten
+        master_name_map = dict(
+            zip(df_master_clean["ID"], df_master_clean["Nama Lengkap"])
+        )
+        if "ID" in df_absen_clean.columns:
+            df_absen_clean["Nama Lengkap"] = (
+                df_absen_clean["ID"]
+                .map(master_name_map)
+                .fillna(df_absen_clean.get("Nama Lengkap", ""))
+            )
 
-        # Filter Site
+        # 2. FILTERING SITE & SEARCH
         if selected_site != "Semua Site":
-            if not df_absen_clean.empty and "Site" in df_absen_clean.columns:
-                df_absen_clean = df_absen_clean[df_absen_clean["Site"] == selected_site]
+            if "Site" in df_absen_clean.columns:
+                df_absen_clean = df_absen_clean[
+                    df_absen_clean["Site"] == selected_site
+                ]
             if "Site" in df_master_clean.columns:
-                df_master_clean = df_master_clean[df_master_clean["Site"] == selected_site]
-                filtered_tuples = list(zip(df_master_clean["ID"], df_master_clean["Nama Lengkap"]))
-                all_emp_index = pd.MultiIndex.from_tuples(filtered_tuples, names=["ID", "Nama Lengkap"])
+                df_master_clean = df_master_clean[
+                    df_master_clean["Site"] == selected_site
+                ]
 
-        # Filter Search Nama/ID
         if search_timesheet.strip():
             q_ts = search_timesheet.strip().lower()
-            matching_tuples = [t for t in all_emp_index if q_ts in t[0].lower() or q_ts in t[1].lower()]
-            if matching_tuples:
-                all_emp_index = pd.MultiIndex.from_tuples(matching_tuples, names=["ID", "Nama Lengkap"])
-            else:
-                all_emp_index = pd.MultiIndex.from_tuples([], names=["ID", "Nama Lengkap"])
+            if not df_absen_clean.empty:
+                df_absen_clean = df_absen_clean[
+                    df_absen_clean["ID"].str.lower().str.contains(q_ts, na=False)
+                    | df_absen_clean["Nama Lengkap"]
+                    .str.lower()
+                    .str.contains(q_ts, na=False)
+                ]
+            if not df_master_clean.empty:
+                df_master_clean = df_master_clean[
+                    df_master_clean["ID"].str.lower().str.contains(q_ts, na=False)
+                    | df_master_clean["Nama Lengkap"]
+                    .str.lower()
+                    .str.contains(q_ts, na=False)
+                ]
 
-        if len(all_emp_index) == 0:
-            st.info(f"Tidak ditemukan karyawan dengan kata kunci: '{search_timesheet}'")
-        else:
-            if not df_absen_clean.empty and "Tanggal" in df_absen_clean.columns:
-                df_absen_clean["Tgl_Format"] = pd.to_datetime(
-                    df_absen_clean["Tanggal"], errors="coerce"
-                ).dt.strftime("%d-%b\n%a")
-
-                df_melted = df_absen_clean.melt(
-                    id_vars=["ID", "Nama Lengkap", "Tgl_Format"],
-                    value_vars=["In", "Out", "Shift", "Status"],
-                    var_name="SubHeader",
-                    value_name="Value",
-                )
-
-                matrix_df = df_melted.pivot_table(
-                    index=["ID", "Nama Lengkap"],
-                    columns=["Tgl_Format", "SubHeader"],
-                    values="Value",
-                    aggfunc="first",
-                )
-            else:
-                matrix_df = pd.DataFrame(index=all_emp_index)
-
-            # Reindex dengan seluruh karyawan (Termasuk Ade Haryati)
-            matrix_df = matrix_df.reindex(index=all_emp_index)
-
-            unique_dates = df_absen_clean["Tgl_Format"].dropna().unique() if not df_absen_clean.empty and "Tgl_Format" in df_absen_clean.columns else []
-            if len(unique_dates) == 0:
-                unique_dates = [date.today().strftime("%d-%b\n%a")]
-
-            sub_headers = ["In", "Out", "Shift", "Status"]
-            full_columns = pd.MultiIndex.from_product(
-                [unique_dates, sub_headers], names=["Tgl_Format", "SubHeader"]
+        # 3. KUMPULKAN TANGGAL TERSEDIA
+        if not df_absen_clean.empty and "Tanggal" in df_absen_clean.columns:
+            df_absen_clean["Tanggal_Dt"] = pd.to_datetime(
+                df_absen_clean["Tanggal"], errors="coerce"
             )
-            matrix_df = matrix_df.reindex(columns=full_columns)
+            df_absen_clean = df_absen_clean.sort_values("Tanggal_Dt")
+            unique_dates_dt = df_absen_clean["Tanggal_Dt"].dropna().unique()
+            date_headers = [
+                pd.to_datetime(d).strftime("%d-%b\n%a")
+                for d in unique_dates_dt
+            ]
+            df_absen_clean["Tgl_Format"] = df_absen_clean["Tanggal_Dt"].dt.strftime(
+                "%d-%b\n%a"
+            )
+        else:
+            date_headers = [date.today().strftime("%d-%b\n%a")]
 
+        # 4. MEMBUAT MATRIX PIVOT DENGAN KEPASTIAN SUBHEADER (IN, OUT, SHIFT, STATUS)
+        if not df_absen_clean.empty and "Tgl_Format" in df_absen_clean.columns:
+            matrix_df = df_absen_clean.pivot_table(
+                index=["ID", "Nama Lengkap"],
+                columns="Tgl_Format",
+                values=["In", "Out", "Shift", "Status"],
+                aggfunc="first",
+            )
+            # Reorder level kolom agar Tanggal ada di atas, Subheader (In, Out, Shift, Status) di bawah
+            matrix_df = matrix_df.swaplevel(0, 1, axis=1)
+        else:
+            matrix_df = pd.DataFrame()
+
+        # Pastikan Semua Kombinasi Tanggal & [In, Out, Shift, Status] Lengkap
+        sub_headers = ["In", "Out", "Shift", "Status"]
+        full_columns = pd.MultiIndex.from_product(
+            [date_headers, sub_headers], names=["Tgl_Format", "SubHeader"]
+        )
+
+        # Gabungkan daftar karyawan dari Master Data agar tetap muncul
+        master_tuples = (
+            list(
+                zip(
+                    df_master_clean["ID"], df_master_clean["Nama Lengkap"]
+                )
+            )
+            if not df_master_clean.empty
+            else []
+        )
+        absen_tuples = (
+            list(
+                zip(df_absen_clean["ID"], df_absen_clean["Nama Lengkap"])
+            )
+            if not df_absen_clean.empty
+            else []
+        )
+        all_emp_tuples = sorted(list(set(master_tuples + absen_tuples)))
+        all_emp_index = pd.MultiIndex.from_tuples(
+            all_emp_tuples, names=["ID", "Nama Lengkap"]
+        )
+
+        if len(all_emp_tuples) == 0:
+            st.info(
+                f"Tidak ditemukan data untuk kata kunci: '{search_timesheet}'"
+            )
+        else:
+            # Reindex Baris & Kolom Secara Presisi
+            matrix_df = matrix_df.reindex(
+                index=all_emp_index, columns=full_columns
+            )
             matrix_df = matrix_df.fillna("-")
             matrix_df = matrix_df.map(
                 lambda x: (
@@ -1723,11 +1800,13 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                 )
             )
 
-            matrix_df = matrix_df.sort_index(level="ID")
             matrix_display = matrix_df.reset_index()
 
+            # Styling Kondisional
             def apply_matrix_styles(df):
-                styles_df = pd.DataFrame("", index=df.index, columns=df.columns)
+                styles_df = pd.DataFrame(
+                    "", index=df.index, columns=df.columns
+                )
 
                 for col in df.columns:
                     if isinstance(col, tuple) and len(col) > 1:
@@ -1735,16 +1814,18 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
 
                         if sub_header == "Status":
                             for idx in df.index:
-                                val_str = str(df.loc[idx, col]).strip().lower()
+                                val_str = (
+                                    str(df.loc[idx, col]).strip().lower()
+                                )
                                 if val_str in ["sakit", "cuti", "izin", "ijin"]:
                                     styles_df.loc[idx, col] = (
-                                        "background-color: #FFC000; color: black;"
-                                        " font-weight: bold;"
+                                        "background-color: #FFC000; color:"
+                                        " black; font-weight: bold;"
                                     )
                                 elif val_str in ["late", "terlambat"]:
                                     styles_df.loc[idx, col] = (
-                                        "background-color: #FF0000; color: white;"
-                                        " font-weight: bold;"
+                                        "background-color: #FF0000; color:"
+                                        " white; font-weight: bold;"
                                     )
                                 elif val_str in [
                                     "alpha",
@@ -1752,8 +1833,8 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
                                     "tidak hadir",
                                 ]:
                                     styles_df.loc[idx, col] = (
-                                        "background-color: #8B0000; color: white;"
-                                        " font-weight: bold;"
+                                        "background-color: #8B0000; color:"
+                                        " white; font-weight: bold;"
                                     )
 
                 return styles_df
