@@ -1787,6 +1787,59 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         "Total Payment Amount",
     ]
 
+    # --- FUNGSI GENERATE PDF MANPOWER COST (SOLUSI 2) ---
+    def generate_manpower_pdf(df_filtered, total_hc, total_sal, total_mp, total_pay, top_proj, top_val):
+        pdf = FPDF(orientation="P", unit="mm", format="A4")
+        pdf.add_page()
+        
+        # Header Laporan
+        pdf.set_font("Helvetica", "B", 16)
+        pdf.cell(0, 10, "LAPORAN RINGKASAN MANPOWER COST", new_x="LMARGIN", new_y="NEXT", align="C")
+        pdf.set_font("Helvetica", "", 10)
+        pdf.cell(0, 6, f"Dicetak Tanggal: {date.today().strftime('%d-%m-%Y')} | Total Record: {len(df_filtered)}", new_x="LMARGIN", new_y="NEXT", align="C")
+        pdf.ln(5)
+        
+        # Section 1: Executive Summary & Key Metrics
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.cell(0, 8, "1. Executive Summary & Key Metrics", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 10)
+        pdf.cell(0, 6, f"- Total Headcount          : {total_hc:,} orang", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 6, f"- Total Salary             : Rp {total_sal:,}".replace(",", "."), new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 6, f"- Total Manpower Cost      : Rp {total_mp:,}".replace(",", "."), new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 6, f"- Total Payment Amount     : Rp {total_pay:,}".replace(",", "."), new_x="LMARGIN", new_y="NEXT")
+        if top_proj:
+            pdf.cell(0, 6, f"- Top Project Anggaran     : {top_proj} (Rp {top_val:,})".replace(",", "."), new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(5)
+        
+        # Section 2: Breakdown Ringkas per Project
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.cell(0, 8, "2. Breakdown Total Payment per Project (Top 10)", new_x="LMARGIN", new_y="NEXT")
+        
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.set_fill_color(230, 230, 230)
+        pdf.cell(100, 7, "Nama Project", border=1, align="C", fill=True)
+        pdf.cell(45, 7, "Headcount", border=1, align="C", fill=True)
+        pdf.cell(45, 7, "Total Payment (Rp)", border=1, align="C", fill=True)
+        pdf.ln()
+        
+        pdf.set_font("Helvetica", "", 8)
+        if "Project" in df_filtered.columns and "Total Payment Amount" in df_filtered.columns:
+            df_temp = df_filtered.copy()
+            df_temp["Parsed_Payment"] = to_num(df_temp["Total Payment Amount"])
+            proj_grp = df_temp.groupby("Project").agg(
+                HC=("Name", "count"),
+                Payment=("Parsed_Payment", "sum")
+            ).reset_index().sort_values("Payment", ascending=False).head(10)
+            
+            for _, r in proj_grp.iterrows():
+                pdf.cell(100, 6, str(r["Project"])[:45], border=1)
+                pdf.cell(45, 6, f"{r['HC']:,} orang", border=1, align="C")
+                pdf.cell(45, 6, f"Rp {int(r['Payment']):,}".replace(",", "."), border=1, align="R")
+                pdf.ln()
+        
+        out = pdf.output()
+        return bytes(out) if isinstance(out, (str, bytearray)) else out
+
     def load_manpower_cost_data():
         df_mc = None
         try:
@@ -2011,6 +2064,8 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             df_chart["Parsed_Salary"] = to_num(df_chart["Total Salary"])
             df_chart["Parsed_Overtime"] = to_num(df_chart["Overtime"])
 
+            top_proj_name = ""
+            top_proj_val = 0
             if not df_chart.empty:
                 top_proj_name = (
                     df_chart.groupby("Project")["Parsed_Payment"]
@@ -2025,11 +2080,26 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 formatted_top_val = (
                     f"Rp {int(top_proj_val):,}".replace(",", ".")
                 )
-                st.info(
-                    f"💡 **Ringkasan Eksekutif:** Anggaran total payment terbesar"
-                    f" saat ini dipegang oleh project **{top_proj_name}**"
-                    f" dengan nilai sebesar **{formatted_top_val}**."
-                )
+                
+                col_info, col_pdf = st.columns([3, 1])
+                with col_info:
+                    st.info(
+                        f"💡 **Ringkasan Eksekutif:** Anggaran total payment terbesar"
+                        f" saat ini dipegang oleh project **{top_proj_name}**"
+                        f" dengan nilai sebesar **{formatted_top_val}**."
+                    )
+                with col_pdf:
+                    pdf_bytes_mp = generate_manpower_pdf(
+                        filtered_mc, total_headcount, total_salary, 
+                        total_mp_cost, total_payment, top_proj_name, int(top_proj_val)
+                    )
+                    st.download_button(
+                        label="📄 Save / Cetak PDF",
+                        data=pdf_bytes_mp,
+                        file_name=f"Laporan_Manpower_Cost_{date.today().strftime('%Y%m%d')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
 
             gc1, gc2 = st.columns(2)
             with gc1:
