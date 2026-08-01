@@ -3,6 +3,7 @@ import io
 import re
 from fpdf import FPDF
 from groq import Groq
+import matplotlib.pyplot as plt
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -1787,8 +1788,8 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         "Total Payment Amount",
     ]
 
-    # --- FUNGSI GENERATE PDF MANPOWER COST + DENGAN GRAFIK ---
-    def generate_manpower_pdf_with_charts(df_filtered, total_hc, total_sal, total_mp, total_pay, top_proj, top_val, figures_dict):
+    # --- FUNGSI GENERATE PDF MANPOWER COST + GRAFIK (STABIL & KONSISTEN) ---
+    def generate_manpower_pdf_with_charts(df_filtered, total_hc, total_sal, total_mp, total_pay, top_proj, top_val):
         pdf = FPDF(orientation="P", unit="mm", format="A4")
         pdf.set_auto_page_break(auto=True, margin=15)
         pdf.add_page()
@@ -1824,8 +1825,9 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         pdf.ln()
         
         pdf.set_font("Helvetica", "", 8)
-        if "Project" in df_filtered.columns and "Total Payment Amount" in df_filtered.columns:
-            df_temp = df_filtered.copy()
+        df_temp = df_filtered.copy()
+        proj_grp = pd.DataFrame()
+        if "Project" in df_temp.columns and "Total Payment Amount" in df_temp.columns:
             df_temp["Parsed_Payment"] = to_num(df_temp["Total Payment Amount"])
             proj_grp = df_temp.groupby("Project").agg(
                 HC=("Name", "count"),
@@ -1841,23 +1843,50 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         # Section 3: Visualisasi Grafik Dashboard Analytics
         pdf.add_page()
         pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(0, 8, "3. Visualisasi Dashboard Analytics & Sebaran Biaya", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 8, "3. Visualisasi Dashboard Analytics", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(2)
 
-        # Sisipkan Setiap Grafik Plotly ke PDF
-        for title, fig in figures_dict.items():
-            try:
-                img_bytes = fig.to_image(format="png", width=900, height=450, engine="kaleido")
-                img_stream = io.BytesIO(img_bytes)
+        # GRAFIK 1: Total Payment per Bulan
+        try:
+            df_m = df_temp.groupby("Month")["Parsed_Payment"].sum().reset_index()
+            fig_m, ax_m = plt.subplots(figsize=(8, 3.5))
+            bars = ax_m.bar(df_m["Month"], df_m["Parsed_Payment"] / 1e9, color="#1F4E79")
+            ax_m.set_title("Total Payment Amount per Bulan (Milyar Rp)", fontsize=10, fontweight="bold")
+            ax_m.set_ylabel("Milyar Rp")
+            for bar in bars:
+                yval = bar.get_height()
+                ax_m.text(bar.get_x() + bar.get_width()/2, yval, f"{yval:.2f} M", ha="center", va="bottom", fontsize=8)
+            
+            img_buf = io.BytesIO()
+            plt.tight_layout()
+            plt.savefig(img_buf, format="png", dpi=150)
+            plt.close(fig_m)
+            
+            pdf.image(img_buf, w=180)
+            pdf.ln(5)
+        except Exception:
+            pass
+
+        # GRAFIK 2: Top 10 Project Total Payment
+        try:
+            if not proj_grp.empty:
+                fig_p, ax_p = plt.subplots(figsize=(8, 4))
+                proj_top = proj_grp.sort_values("Payment", ascending=True)
+                bars_p = ax_p.barh(proj_top["Project"], proj_top["Payment"] / 1e6, color="#2CA02C")
+                ax_p.set_title("Top 10 Project Berdasarkan Total Payment (Juta Rp)", fontsize=10, fontweight="bold")
+                ax_p.set_xlabel("Juta Rp")
+                for bar in bars_p:
+                    xval = bar.get_width()
+                    ax_p.text(xval, bar.get_y() + bar.get_height()/2, f" {xval:,.0f} Jt", ha="left", va="center", fontsize=7)
                 
-                pdf.set_font("Helvetica", "B", 10)
-                pdf.cell(0, 6, f"• {title}", new_x="LMARGIN", new_y="NEXT")
-                pdf.ln(1)
-                pdf.image(img_stream, w=180)
-                pdf.ln(6)
-            except Exception as e:
-                pdf.set_font("Helvetica", "I", 8)
-                pdf.cell(0, 5, f"(Gagal memuat grafik: {title})", new_x="LMARGIN", new_y="NEXT")
+                img_buf2 = io.BytesIO()
+                plt.tight_layout()
+                plt.savefig(img_buf2, format="png", dpi=150)
+                plt.close(fig_p)
+                
+                pdf.image(img_buf2, w=180)
+        except Exception:
+            pass
         
         out = pdf.output()
         return bytes(out) if isinstance(out, (str, bytearray)) else out
@@ -2109,9 +2138,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     f" dengan nilai sebesar **{formatted_top_val}**."
                 )
 
-            # --- RENDER SEMUA GRAFIK DASHBOARD ---
-            charts_to_export = {}
-
             gc1, gc2 = st.columns(2)
             with gc1:
                 trend_month = (
@@ -2156,7 +2182,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     },
                 )
                 st.plotly_chart(fig_trend, use_container_width=True)
-                charts_to_export["Total Payment Amount per Bulan"] = fig_trend
 
             with gc2:
                 top_cost_proj = (
@@ -2193,7 +2218,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     yaxis_title="Project",
                 )
                 st.plotly_chart(fig_proj_cost, use_container_width=True)
-                charts_to_export["Top 10 Project Berdasarkan Total Payment"] = fig_proj_cost
 
             gc_ot, gc4 = st.columns(2)
             with gc_ot:
@@ -2234,7 +2258,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     xaxis_tickangle=-25,
                 )
                 st.plotly_chart(fig_ot_loc, use_container_width=True)
-                charts_to_export["Perbandingan Overtime Work Location per Bulan"] = fig_ot_loc
 
             with gc4:
                 top_hc = (
@@ -2260,7 +2283,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     yaxis_title="Project",
                 )
                 st.plotly_chart(fig_hc, use_container_width=True)
-                charts_to_export["Top 10 Project Berdasarkan Jumlah Headcount"] = fig_hc
 
             gc3, gc_emp = st.columns(2)
             with gc3:
@@ -2303,7 +2325,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     xaxis_tickangle=-25,
                 )
                 st.plotly_chart(fig_proj_month, use_container_width=True)
-                charts_to_export["Perbandingan Biaya Project per Bulan"] = fig_proj_month
 
             with gc_emp:
                 if (
@@ -2372,25 +2393,21 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                         margin=dict(t=60, b=50),
                     )
                     st.plotly_chart(fig_stat_proj, use_container_width=True)
-                    charts_to_export["Perbandingan Biaya FDW vs TDW per Project"] = fig_stat_proj
 
             st.divider()
             
             # --- TOMBOL GENERATE PDF DENGAN GRAFIK ---
-            if st.button("📄 Generate & Download Laporan PDF (Termasuk Semua Grafik)", use_container_width=True):
-                with st.spinner("Mengonversi semua grafik ke PDF..."):
-                    pdf_bytes_full = generate_manpower_pdf_with_charts(
-                        filtered_mc, total_headcount, total_salary, 
-                        total_mp_cost, total_payment, top_proj_name, int(top_proj_val),
-                        charts_to_export
-                    )
-                    st.download_button(
-                        label="💾 Klik di sini untuk Mengunduh PDF",
-                        data=pdf_bytes_full,
-                        file_name=f"Laporan_Manpower_Cost_Lengkap_{date.today().strftime('%Y%m%d')}.pdf",
-                        mime="application/pdf",
-                        use_container_width=True
-                    )
+            pdf_bytes_full = generate_manpower_pdf_with_charts(
+                filtered_mc, total_headcount, total_salary, 
+                total_mp_cost, total_payment, top_proj_name, int(top_proj_val)
+            )
+            st.download_button(
+                label="📄 Generate & Download Laporan PDF (Termasuk Grafik)",
+                data=pdf_bytes_full,
+                file_name=f"Laporan_Manpower_Cost_Lengkap_{date.today().strftime('%Y%m%d')}.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
 
         with st.expander(
             "🔍 Cek Detail / Baris Angka Total Payment Amount", expanded=False
