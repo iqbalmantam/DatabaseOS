@@ -1788,186 +1788,223 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         "Total Payment Amount",
     ]
 
-    # --- FUNGSI GENERATE PDF MANPOWER COST + LENGKAP SEMUA GRAFIK DIBERSIHKAN/DIURUTKAN ---
-def generate_manpower_pdf_with_charts(df_filtered, total_hc, total_sal, total_mp, total_pay, top_proj, top_val):
-    pdf = FPDF(orientation="P", unit="mm", format="A4")
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_page()
-    
-    # Header Laporan
-    pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "LAPORAN EXECUTIVE MANPOWER COST", new_x="LMARGIN", new_y="NEXT", align="C")
-    pdf.set_font("Helvetica", "", 10)
-    pdf.cell(0, 6, f"Dicetak Tanggal: {date.today().strftime('%d-%m-%Y')} | Total Record: {len(df_filtered)}", new_x="LMARGIN", new_y="NEXT", align="C")
-    pdf.ln(5)
-    
-    # Section 1: Executive Summary & Key Metrics
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 8, "1. Executive Summary & Key Metrics", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", "", 10)
-    pdf.cell(0, 6, f"- Total Headcount          : {total_hc:,} orang", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 6, f"- Total Salary             : Rp {total_sal:,}".replace(",", "."), new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 6, f"- Total Manpower Cost      : Rp {total_mp:,}".replace(",", "."), new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 6, f"- Total Payment Amount     : Rp {total_pay:,}".replace(",", "."), new_x="LMARGIN", new_y="NEXT")
-    if top_proj:
-        pdf.cell(0, 6, f"- Top Project Anggaran     : {top_proj} (Rp {top_val:,})".replace(",", "."), new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(5)
-    
-    # Section 2: Breakdown Ringkas per Project (Top 10)
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 8, "2. Breakdown Total Payment per Project (Top 10)", new_x="LMARGIN", new_y="NEXT")
-    
-    pdf.set_font("Helvetica", "B", 9)
-    pdf.set_fill_color(230, 230, 230)
-    pdf.cell(100, 7, "Nama Project", border=1, align="C", fill=True)
-    pdf.cell(45, 7, "Headcount", border=1, align="C", fill=True)
-    pdf.cell(45, 7, "Total Payment (Rp)", border=1, align="C", fill=True)
-    pdf.ln()
-    
-    pdf.set_font("Helvetica", "", 8)
-    df_temp = df_filtered.copy()
-    proj_grp = pd.DataFrame()
-    if "Project" in df_temp.columns and "Total Payment Amount" in df_temp.columns:
-        df_temp["Parsed_Payment"] = to_num(df_temp["Total Payment Amount"])
-        df_temp["Parsed_Overtime"] = to_num(df_temp["Overtime"])
-        
-        proj_grp = df_temp.groupby("Project").agg(
-            HC=("Name", "count"),
-            Payment=("Parsed_Payment", "sum")
-        ).reset_index().sort_values("Payment", ascending=False).head(10)
-        
-        for _, r in proj_grp.iterrows():
-            pdf.cell(100, 6, str(r["Project"])[:45], border=1)
-            pdf.cell(45, 6, f"{r['HC']:,} orang", border=1, align="C")
-            pdf.cell(45, 6, f"Rp {int(r['Payment']):,}".replace(",", "."), border=1, align="R")
-            pdf.ln()
-    
-    # Section 3: Visualisasi Grafik Dashboard Analytics
-    pdf.add_page()
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 8, "3. Visualisasi Dashboard Analytics", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(2)
+    # --- FUNGSI HELPER PARSING NOMINAL ANGKA BANYAK FORMAT ---
+    def to_num(series):
+        def parse_val(val):
+            if pd.isna(val):
+                return 0.0
+            s = str(val).strip()
+            if not s or s.lower() in ["nan", "none", "-", ""]:
+                return 0.0
 
-    # GRAFIK 1: Total Payment per Bulan (DIURUTKAN KRONOLOGIS BULAN)
-    try:
-        df_m = df_temp.groupby("Month")["Parsed_Payment"].sum().reset_index()
-        # Urutkan berdasarkan parse tanggal agar Mei muncul sebelum Juni
-        df_m["Month_Dt"] = pd.to_datetime(df_m["Month"], errors="coerce")
-        df_m = df_m.sort_values("Month_Dt", ascending=True)
-        
-        fig_m, ax_m = plt.subplots(figsize=(8, 3.2))
-        bars = ax_m.bar(df_m["Month"], df_m["Parsed_Payment"] / 1e9, color="#1F4E79")
-        ax_m.set_title("Total Payment Amount per Bulan (Milyar Rp)", fontsize=10, fontweight="bold")
-        ax_m.set_ylabel("Milyar Rp")
-        for bar in bars:
-            yval = bar.get_height()
-            ax_m.text(bar.get_x() + bar.get_width()/2, yval, f"{yval:.2f} M", ha="center", va="bottom", fontsize=8)
-        
-        img_buf = io.BytesIO()
-        plt.tight_layout()
-        plt.savefig(img_buf, format="png", dpi=150)
-        plt.close(fig_m)
-        
-        pdf.image(img_buf, w=180)
-        pdf.ln(4)
-    except Exception:
-        pass
+            s_clean = re.sub(r"[^\d.,-]", "", s)
+            if not s_clean:
+                return 0.0
 
-    # GRAFIK 2: Top 10 Project Total Payment
-    try:
-        if not proj_grp.empty:
-            fig_p, ax_p = plt.subplots(figsize=(8, 3.5))
-            proj_top = proj_grp.sort_values("Payment", ascending=True)
-            bars_p = ax_p.barh(proj_top["Project"], proj_top["Payment"] / 1e6, color="#2CA02C")
-            ax_p.set_title("Top 10 Project Berdasarkan Total Payment (Juta Rp)", fontsize=10, fontweight="bold")
-            ax_p.set_xlabel("Juta Rp")
-            for bar in bars_p:
-                xval = bar.get_width()
-                ax_p.text(xval, bar.get_y() + bar.get_height()/2, f" {xval:,.0f} Jt", ha="left", va="center", fontsize=7)
+            if "," in s_clean and "." in s_clean:
+                if s_clean.rfind(",") > s_clean.rfind("."):
+                    s_clean = s_clean.replace(".", "").replace(",", ".")
+                else:
+                    s_clean = s_clean.replace(",", "")
+            elif "," in s_clean:
+                parts = s_clean.split(",")
+                if len(parts) == 2 and len(parts[1]) <= 2:
+                    s_clean = s_clean.replace(",", ".")
+                else:
+                    s_clean = s_clean.replace(",", "")
+            elif "." in s_clean:
+                parts = s_clean.split(".")
+                if len(parts) > 2:
+                    s_clean = s_clean.replace(".", "")
+                elif len(parts) == 2 and len(parts[1]) == 3:
+                    s_clean = s_clean.replace(".", "")
+
+            try:
+                return float(s_clean)
+            except ValueError:
+                return 0.0
+
+        return series.apply(parse_val)
+
+    # --- FUNGSI GENERATE PDF MANPOWER COST + LENGKAP SEMUA GRAFIK ---
+    def generate_manpower_pdf_with_charts(df_filtered, total_hc, total_sal, total_mp, total_pay, top_proj, top_val):
+        pdf = FPDF(orientation="P", unit="mm", format="A4")
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.add_page()
+        
+        # Header Laporan
+        pdf.set_font("Helvetica", "B", 16)
+        pdf.cell(0, 10, "LAPORAN EXECUTIVE MANPOWER COST", new_x="LMARGIN", new_y="NEXT", align="C")
+        pdf.set_font("Helvetica", "", 10)
+        pdf.cell(0, 6, f"Dicetak Tanggal: {date.today().strftime('%d-%m-%Y')} | Total Record: {len(df_filtered)}", new_x="LMARGIN", new_y="NEXT", align="C")
+        pdf.ln(5)
+        
+        # Section 1: Executive Summary & Key Metrics
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.cell(0, 8, "1. Executive Summary & Key Metrics", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 10)
+        pdf.cell(0, 6, f"- Total Headcount          : {total_hc:,} orang", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 6, f"- Total Salary             : Rp {total_sal:,}".replace(",", "."), new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 6, f"- Total Manpower Cost      : Rp {total_mp:,}".replace(",", "."), new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 6, f"- Total Payment Amount     : Rp {total_pay:,}".replace(",", "."), new_x="LMARGIN", new_y="NEXT")
+        if top_proj:
+            pdf.cell(0, 6, f"- Top Project Anggaran     : {top_proj} (Rp {top_val:,})".replace(",", "."), new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(5)
+        
+        # Section 2: Breakdown Ringkas per Project (Top 10)
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.cell(0, 8, "2. Breakdown Total Payment per Project (Top 10)", new_x="LMARGIN", new_y="NEXT")
+        
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.set_fill_color(230, 230, 230)
+        pdf.cell(100, 7, "Nama Project", border=1, align="C", fill=True)
+        pdf.cell(45, 7, "Headcount", border=1, align="C", fill=True)
+        pdf.cell(45, 7, "Total Payment (Rp)", border=1, align="C", fill=True)
+        pdf.ln()
+        
+        pdf.set_font("Helvetica", "", 8)
+        df_temp = df_filtered.copy()
+        proj_grp = pd.DataFrame()
+        if "Project" in df_temp.columns and "Total Payment Amount" in df_temp.columns:
+            df_temp["Parsed_Payment"] = to_num(df_temp["Total Payment Amount"])
+            df_temp["Parsed_Overtime"] = to_num(df_temp["Overtime"])
             
-            img_buf2 = io.BytesIO()
+            proj_grp = df_temp.groupby("Project").agg(
+                HC=("Name", "count"),
+                Payment=("Parsed_Payment", "sum")
+            ).reset_index().sort_values("Payment", ascending=False).head(10)
+            
+            for _, r in proj_grp.iterrows():
+                pdf.cell(100, 6, str(r["Project"])[:45], border=1)
+                pdf.cell(45, 6, f"{r['HC']:,} orang", border=1, align="C")
+                pdf.cell(45, 6, f"Rp {int(r['Payment']):,}".replace(",", "."), border=1, align="R")
+                pdf.ln()
+        
+        # Section 3: Visualisasi Grafik Dashboard Analytics
+        pdf.add_page()
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.cell(0, 8, "3. Visualisasi Dashboard Analytics", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(2)
+
+        # GRAFIK 1: Total Payment per Bulan (DIURUTKAN KRONOLOGIS BULAN)
+        try:
+            df_m = df_temp.groupby("Month")["Parsed_Payment"].sum().reset_index()
+            # Urutkan berdasarkan parse tanggal agar Mei muncul sebelum Juni
+            df_m["Month_Dt"] = pd.to_datetime(df_m["Month"], errors="coerce")
+            df_m = df_m.sort_values("Month_Dt", ascending=True)
+            
+            fig_m, ax_m = plt.subplots(figsize=(8, 3.2))
+            bars = ax_m.bar(df_m["Month"], df_m["Parsed_Payment"] / 1e9, color="#1F4E79")
+            ax_m.set_title("Total Payment Amount per Bulan (Milyar Rp)", fontsize=10, fontweight="bold")
+            ax_m.set_ylabel("Milyar Rp")
+            for bar in bars:
+                yval = bar.get_height()
+                ax_m.text(bar.get_x() + bar.get_width()/2, yval, f"{yval:.2f} M", ha="center", va="bottom", fontsize=8)
+            
+            img_buf = io.BytesIO()
             plt.tight_layout()
-            plt.savefig(img_buf2, format="png", dpi=150)
-            plt.close(fig_p)
+            plt.savefig(img_buf, format="png", dpi=150)
+            plt.close(fig_m)
             
-            pdf.image(img_buf2, w=180)
+            pdf.image(img_buf, w=180)
             pdf.ln(4)
-    except Exception:
-        pass
+        except Exception:
+            pass
 
-    # GRAFIK 3: Perbandingan Overtime Work Location per Bulan
-    try:
-        if "Work Location" in df_temp.columns and "Month" in df_temp.columns:
-            pdf.add_page() # Buka halaman baru agar rapi
-            df_ot = df_temp.groupby(["Work Location", "Month"])["Parsed_Overtime"].sum().unstack().fillna(0)
-            # Reorder kolom bulan
-            month_cols = sorted(df_ot.columns, key=lambda x: pd.to_datetime(x, errors="coerce"))
-            df_ot = df_ot[month_cols]
-            
-            fig_ot, ax_ot = plt.subplots(figsize=(8, 3.5))
-            df_ot.plot(kind="bar", ax=ax_ot, colormap="tab10", width=0.7)
-            ax_ot.set_title("Perbandingan Overtime Work Location (Compare per Bulan)", fontsize=10, fontweight="bold")
-            ax_ot.set_ylabel("Rupiah")
-            ax_ot.set_xlabel("Work Location")
-            plt.xticks(rotation=20, ha="right", fontsize=8)
-            
-            img_buf3 = io.BytesIO()
-            plt.tight_layout()
-            plt.savefig(img_buf3, format="png", dpi=150)
-            plt.close(fig_ot)
-            
-            pdf.image(img_buf3, w=180)
-            pdf.ln(4)
-    except Exception:
-        pass
+        # GRAFIK 2: Top 10 Project Total Payment
+        try:
+            if not proj_grp.empty:
+                fig_p, ax_p = plt.subplots(figsize=(8, 3.5))
+                proj_top = proj_grp.sort_values("Payment", ascending=True)
+                bars_p = ax_p.barh(proj_top["Project"], proj_top["Payment"] / 1e6, color="#2CA02C")
+                ax_p.set_title("Top 10 Project Berdasarkan Total Payment (Juta Rp)", fontsize=10, fontweight="bold")
+                ax_p.set_xlabel("Juta Rp")
+                for bar in bars_p:
+                    xval = bar.get_width()
+                    ax_p.text(xval, bar.get_y() + bar.get_height()/2, f" {xval:,.0f} Jt", ha="left", va="center", fontsize=7)
+                
+                img_buf2 = io.BytesIO()
+                plt.tight_layout()
+                plt.savefig(img_buf2, format="png", dpi=150)
+                plt.close(fig_p)
+                
+                pdf.image(img_buf2, w=180)
+                pdf.ln(4)
+        except Exception:
+            pass
 
-    # GRAFIK 4: Top 10 Project Berdasarkan Headcount
-    try:
-        if not proj_grp.empty:
-            fig_hc, ax_hc = plt.subplots(figsize=(8, 3.5))
-            proj_hc_top = proj_grp.sort_values("HC", ascending=True)
-            bars_hc = ax_hc.barh(proj_hc_top["Project"], proj_hc_top["HC"], color="#17BECF")
-            ax_hc.set_title("Top 10 Project Berdasarkan Jumlah Headcount", fontsize=10, fontweight="bold")
-            ax_hc.set_xlabel("Jumlah Karyawan")
-            for bar in bars_hc:
-                xval = bar.get_width()
-                ax_hc.text(xval, bar.get_y() + bar.get_height()/2, f" {int(xval)} orang", ha="left", va="center", fontsize=7)
-            
-            img_buf4 = io.BytesIO()
-            plt.tight_layout()
-            plt.savefig(img_buf4, format="png", dpi=150)
-            plt.close(fig_hc)
-            
-            pdf.image(img_buf4, w=180)
-            pdf.ln(4)
-    except Exception:
-        pass
+        # GRAFIK 3: Perbandingan Overtime Work Location per Bulan
+        try:
+            if "Work Location" in df_temp.columns and "Month" in df_temp.columns:
+                pdf.add_page()
+                df_ot = df_temp.groupby(["Work Location", "Month"])["Parsed_Overtime"].sum().unstack().fillna(0)
+                month_cols = sorted(df_ot.columns, key=lambda x: pd.to_datetime(x, errors="coerce"))
+                df_ot = df_ot[month_cols]
+                
+                fig_ot, ax_ot = plt.subplots(figsize=(8, 3.5))
+                df_ot.plot(kind="bar", ax=ax_ot, colormap="tab10", width=0.7)
+                ax_ot.set_title("Perbandingan Overtime Work Location (Compare per Bulan)", fontsize=10, fontweight="bold")
+                ax_ot.set_ylabel("Rupiah")
+                ax_ot.set_xlabel("Work Location")
+                plt.xticks(rotation=20, ha="right", fontsize=8)
+                
+                img_buf3 = io.BytesIO()
+                plt.tight_layout()
+                plt.savefig(img_buf3, format="png", dpi=150)
+                plt.close(fig_ot)
+                
+                pdf.image(img_buf3, w=180)
+                pdf.ln(4)
+        except Exception:
+            pass
 
-    # GRAFIK 5: Perbandingan FDW vs TDW per Project
-    try:
-        if "Employment Status" in df_temp.columns:
-            df_emp_st = df_temp.groupby(["Project", "Employment Status"])["Parsed_Payment"].sum().unstack().fillna(0)
-            top_projects = proj_grp["Project"].tolist()
-            df_emp_st = df_emp_st.reindex(top_projects).dropna(how="all")
-            
-            fig_es, ax_es = plt.subplots(figsize=(8, 3.8))
-            (df_emp_st / 1e6).plot(kind="bar", ax=ax_es, colormap="Set2", width=0.7)
-            ax_es.set_title("Perbandingan Biaya (Total Payment) FDW vs TDW per Project (Juta Rp)", fontsize=10, fontweight="bold")
-            ax_es.set_ylabel("Juta Rp")
-            ax_es.set_xlabel("Project")
-            plt.xticks(rotation=25, ha="right", fontsize=8)
-            
-            img_buf5 = io.BytesIO()
-            plt.tight_layout()
-            plt.savefig(img_buf5, format="png", dpi=150)
-            plt.close(fig_es)
-            
-            pdf.image(img_buf5, w=180)
-    except Exception:
-        pass
-    
-    out = pdf.output()
-    return bytes(out) if isinstance(out, (str, bytearray)) else out
+        # GRAFIK 4: Top 10 Project Berdasarkan Headcount
+        try:
+            if not proj_grp.empty:
+                fig_hc, ax_hc = plt.subplots(figsize=(8, 3.5))
+                proj_hc_top = proj_grp.sort_values("HC", ascending=True)
+                bars_hc = ax_hc.barh(proj_hc_top["Project"], proj_hc_top["HC"], color="#17BECF")
+                ax_hc.set_title("Top 10 Project Berdasarkan Jumlah Headcount", fontsize=10, fontweight="bold")
+                ax_hc.set_xlabel("Jumlah Karyawan")
+                for bar in bars_hc:
+                    xval = bar.get_width()
+                    ax_hc.text(xval, bar.get_y() + bar.get_height()/2, f" {int(xval)} orang", ha="left", va="center", fontsize=7)
+                
+                img_buf4 = io.BytesIO()
+                plt.tight_layout()
+                plt.savefig(img_buf4, format="png", dpi=150)
+                plt.close(fig_hc)
+                
+                pdf.image(img_buf4, w=180)
+                pdf.ln(4)
+        except Exception:
+            pass
+
+        # GRAFIK 5: Perbandingan FDW vs TDW per Project
+        try:
+            if "Employment Status" in df_temp.columns:
+                df_emp_st = df_temp.groupby(["Project", "Employment Status"])["Parsed_Payment"].sum().unstack().fillna(0)
+                top_projects = proj_grp["Project"].tolist()
+                df_emp_st = df_emp_st.reindex(top_projects).dropna(how="all")
+                
+                fig_es, ax_es = plt.subplots(figsize=(8, 3.8))
+                (df_emp_st / 1e6).plot(kind="bar", ax=ax_es, colormap="Set2", width=0.7)
+                ax_es.set_title("Perbandingan Biaya (Total Payment) FDW vs TDW per Project (Juta Rp)", fontsize=10, fontweight="bold")
+                ax_es.set_ylabel("Juta Rp")
+                ax_es.set_xlabel("Project")
+                plt.xticks(rotation=25, ha="right", fontsize=8)
+                
+                img_buf5 = io.BytesIO()
+                plt.tight_layout()
+                plt.savefig(img_buf5, format="png", dpi=150)
+                plt.close(fig_es)
+                
+                pdf.image(img_buf5, w=180)
+        except Exception:
+            pass
+        
+        out = pdf.output()
+        return bytes(out) if isinstance(out, (str, bytearray)) else out
 
     def load_manpower_cost_data():
         df_mc = None
@@ -2117,43 +2154,6 @@ def generate_manpower_pdf_with_charts(df_filtered, total_hc, total_sal, total_mp
                 filtered_mc["Work Location"].str.strip().isin(selected_location)
             ]
 
-        def to_num(series):
-            def parse_val(val):
-                if pd.isna(val):
-                    return 0.0
-                s = str(val).strip()
-                if not s or s.lower() in ["nan", "none", "-", ""]:
-                    return 0.0
-
-                s_clean = re.sub(r"[^\d.,-]", "", s)
-                if not s_clean:
-                    return 0.0
-
-                if "," in s_clean and "." in s_clean:
-                    if s_clean.rfind(",") > s_clean.rfind("."):
-                        s_clean = s_clean.replace(".", "").replace(",", ".")
-                    else:
-                        s_clean = s_clean.replace(",", "")
-                elif "," in s_clean:
-                    parts = s_clean.split(",")
-                    if len(parts) == 2 and len(parts[1]) <= 2:
-                        s_clean = s_clean.replace(",", ".")
-                    else:
-                        s_clean = s_clean.replace(",", "")
-                elif "." in s_clean:
-                    parts = s_clean.split(".")
-                    if len(parts) > 2:
-                        s_clean = s_clean.replace(".", "")
-                    elif len(parts) == 2 and len(parts[1]) == 3:
-                        s_clean = s_clean.replace(".", "")
-
-                try:
-                    return float(s_clean)
-                except ValueError:
-                    return 0.0
-
-            return series.apply(parse_val)
-
         total_headcount = len(filtered_mc)
         total_salary = int(
             round(to_num(filtered_mc["Total Salary"]).astype(float).sum())
@@ -2226,8 +2226,9 @@ def generate_manpower_pdf_with_charts(df_filtered, total_hc, total_sal, total_mp
                 trend_month["Month_Dt"] = pd.to_datetime(
                     trend_month["Month"], errors="coerce"
                 )
+                # URUTKAN BULAN KRONOLOGIS DARI MEI KE JUNI
                 trend_month = trend_month.sort_values(
-                    by=["Month_Dt", "Month"], ascending=[True, True]
+                    by="Month_Dt", ascending=True
                 )
                 trend_month["Text_Format"] = trend_month[
                     "Parsed_Payment"
@@ -2240,7 +2241,7 @@ def generate_manpower_pdf_with_charts(df_filtered, total_hc, total_sal, total_mp
                     title="Total Payment Amount per Bulan",
                     text="Text_Format",
                     color="Month",
-                    color_discrete_sequence=["#2CA02C", "#1F4E79"],
+                    color_discrete_sequence=["#1F4E79", "#2CA02C"],
                 )
                 fig_trend.update_traces(
                     textangle=0,
@@ -2474,7 +2475,7 @@ def generate_manpower_pdf_with_charts(df_filtered, total_hc, total_sal, total_mp
 
             st.divider()
             
-            # --- TOMBOL GENERATE PDF DENGAN GRAFIK ---
+            # --- TOMBOL GENERATE PDF DENGAN GRAFIK LENGKAP ---
             pdf_bytes_full = generate_manpower_pdf_with_charts(
                 filtered_mc, total_headcount, total_salary, 
                 total_mp_cost, total_payment, top_proj_name, int(top_proj_val)
