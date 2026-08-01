@@ -1,8 +1,8 @@
 streamlit
+streamlit-gsheets
 pandas
+openpyxl
 plotly
 fpdf2
-openpyxl
-st-gsheets-connection
 groq
-kaleido==0.2.1
+matplotlib
