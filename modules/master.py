@@ -73,7 +73,7 @@ def render_page(is_admin):
     jumlah_resign = len(karyawan_resign)
     total_aktif = len(df_active_filtered)
 
-    # Dataframe Pie Chart yang sinkron dengan Metrik
+    # Dataframe Pie Chart yang presisi dengan nilai Jumlah
     df_pie_chart = pd.DataFrame([
         {"Status": "Aktif", "Jumlah": total_aktif},
         {"Status": "Resign", "Jumlah": jumlah_resign}
