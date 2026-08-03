@@ -3,19 +3,29 @@ import pandas as pd
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 
-# URL Spreadsheet diambil langsung dari secrets
-SPREADSHEET_URL = st.secrets["connections"]["gsheets"]["spreadsheet"]
+# URL Spreadsheet cadangan jika secrets gagal terbaca
+DEFAULT_URL = "https://docs.google.com/spreadsheets/d/1HFv_6BHGDhQmCNFbXaFr_Q_8jRbJILEQUwF2aWh4oWU/edit"
 
+def get_spreadsheet_url():
+    """Mengambil URL Spreadsheet dengan aman dari Secrets tanpa pemicu KeyError."""
+    try:
+        if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
+            return st.secrets["connections"]["gsheets"].get("spreadsheet", DEFAULT_URL)
+        elif "connections.gsheets" in st.secrets:
+            return st.secrets["connections.gsheets"].get("spreadsheet", DEFAULT_URL)
+    except Exception:
+        pass
+    return DEFAULT_URL
 
 def get_connection():
     return st.connection("gsheets", type=GSheetsConnection)
 
-
 def load_master_data():
     conn = get_connection()
+    url = get_spreadsheet_url()
     try:
-        # Kirimkan parameter spreadsheet=SPREADSHEET_URL secara eksplisit
-        df = conn.read(spreadsheet=SPREADSHEET_URL, worksheet="Master_Karyawan", ttl=0)
+        # Pustaka st.connection gsheets menggunakan argumen url atau spreadsheet
+        df = conn.read(url=url, worksheet="Master_Karyawan", ttl=0)
         if df is not None and not df.empty:
             if "ID" in df.columns:
                 df["ID"] = df["ID"].astype(str).str.strip().str.upper()
@@ -31,9 +41,8 @@ def load_master_data():
                 df["Terakhir Diperbarui"] = str(date.today())
         return df if df is not None else pd.DataFrame()
     except Exception as e:
-        # Fallback jika nama worksheet default / tanpa parameter worksheet
         try:
-            df = conn.read(spreadsheet=SPREADSHEET_URL, ttl=0)
+            df = conn.read(url=url, ttl=0)
             if df is not None and not df.empty:
                 if "ID" in df.columns:
                     df["ID"] = df["ID"].astype(str).str.strip().str.upper()
@@ -65,37 +74,39 @@ def load_master_data():
                 ]
             )
 
-
 def load_snapshot_data():
     conn = get_connection()
+    url = get_spreadsheet_url()
     try:
-        df_snap = conn.read(
-            spreadsheet=SPREADSHEET_URL, worksheet="Snapshot_Bulanan", ttl=0
-        )
+        df_snap = conn.read(url=url, worksheet="Snapshot_Bulanan", ttl=0)
         return df_snap if df_snap is not None else pd.DataFrame()
     except Exception:
         return pd.DataFrame()
 
-
 def save_master_data(df):
     conn = get_connection()
+    url = get_spreadsheet_url()
     clean_df = df.fillna("")
-    conn.update(spreadsheet=SPREADSHEET_URL, worksheet="Master_Karyawan", data=clean_df)
+    try:
+        conn.update(url=url, worksheet="Master_Karyawan", data=clean_df)
+    except Exception:
+        conn.update(worksheet="Master_Karyawan", data=clean_df)
     st.session_state.employees = clean_df
-
 
 def save_snapshot_data(df):
     conn = get_connection()
+    url = get_spreadsheet_url()
     clean_df = df.fillna("")
-    conn.update(spreadsheet=SPREADSHEET_URL, worksheet="Snapshot_Bulanan", data=clean_df)
-
+    try:
+        conn.update(url=url, worksheet="Snapshot_Bulanan", data=clean_df)
+    except Exception:
+        conn.update(worksheet="Snapshot_Bulanan", data=clean_df)
 
 def load_absensi_data():
     conn = get_connection()
+    url = get_spreadsheet_url()
     try:
-        df_absen = conn.read(
-            spreadsheet=SPREADSHEET_URL, worksheet="Absensi_Karyawan", ttl=0
-        )
+        df_absen = conn.read(url=url, worksheet="Absensi_Karyawan", ttl=0)
         if df_absen is not None and not df_absen.empty:
             df_absen["ID"] = df_absen["ID"].astype(str).str.strip().str.upper()
             df_absen["Nama Lengkap"] = (
@@ -122,23 +133,24 @@ def load_absensi_data():
             ]
         )
 
-
 def save_absensi_data(df):
     conn = get_connection()
+    url = get_spreadsheet_url()
     clean_df = df.fillna("")
-    conn.update(spreadsheet=SPREADSHEET_URL, worksheet="Absensi_Karyawan", data=clean_df)
-
+    try:
+        conn.update(url=url, worksheet="Absensi_Karyawan", data=clean_df)
+    except Exception:
+        conn.update(worksheet="Absensi_Karyawan", data=clean_df)
 
 def load_manpower_cost_data(headers):
     conn = get_connection()
+    url = get_spreadsheet_url()
     df_mc = None
     try:
-        df_mc = conn.read(
-            spreadsheet=SPREADSHEET_URL, worksheet="Manpower_Cost", ttl=0
-        )
+        df_mc = conn.read(url=url, worksheet="Manpower_Cost", ttl=0)
     except Exception:
         try:
-            df_mc = conn.read(spreadsheet=SPREADSHEET_URL, ttl=0)
+            df_mc = conn.read(url=url, ttl=0)
         except Exception:
             df_mc = None
 
@@ -161,13 +173,11 @@ def load_manpower_cost_data(headers):
 
     return pd.DataFrame(columns=headers)
 
-
 def save_manpower_data(df):
     conn = get_connection()
+    url = get_spreadsheet_url()
     clean_mc = df.fillna("")
     try:
-        conn.update(
-            spreadsheet=SPREADSHEET_URL, worksheet="Manpower_Cost", data=clean_mc
-        )
+        conn.update(url=url, worksheet="Manpower_Cost", data=clean_mc)
     except Exception:
-        conn.update(spreadsheet=SPREADSHEET_URL, data=clean_mc)
+        conn.update(data=clean_mc)
