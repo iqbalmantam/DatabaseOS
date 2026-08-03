@@ -42,7 +42,7 @@ def generate_ai_context(df):
     """
     return context
 
-def render_page(is_admin):
+def render_page(is_admin=False):
     st.title("🤖 AI HR Assistant")
     st.caption("Created by iqbalmantam")
     st.info("Tanyakan informasi seputar data karyawan, statistik site, cost center, atau aturan HR.")
