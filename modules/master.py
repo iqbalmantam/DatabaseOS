@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from services.gsheet import load_master_data, load_snapshot_data, save_data, save_snapshot_data
+from services.gsheet import load_master_data, load_snapshot_data, save_master_data, save_snapshot_data
 from utils.helper import filter_status_for_period, generate_next_id
 from utils.pdf import generate_pdf
 from utils.excel import generate_excel_formatted
