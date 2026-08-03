@@ -19,7 +19,7 @@ def render_page(is_admin):
     st.title("Employee Database Manager")
     st.caption("Created by iqbalmantam")
 
-    # 1. Load Data Karyawan
+    # 1. Load Data Karyawan Master
     if "employees" not in st.session_state:
         st.session_state.employees = load_master_data()
 
@@ -61,26 +61,19 @@ def render_page(is_admin):
         filter_status_for_period(df_ana, active_period_str, selected_dash_period)
     )
 
-    # --------------------------------------------------------------------------
-    # PERUBAHAN LOGIKA HITUNG RESIGN BERBASIS DATETIME
-    # --------------------------------------------------------------------------
+    # Hitung Karyawan Resign berbasis Datetime
     df_calc = df_master_current.copy()
-
-    # 1. Pastikan kolom Tanggal Resign diubah ke tipe Datetime
     df_calc["Tanggal Resign Clean"] = pd.to_datetime(
         df_calc["Tanggal Resign"], errors="coerce"
     )
 
-    # 2. Hitung Karyawan Resign pada periode yang dipilih
     karyawan_resign = df_calc[
         df_calc["Tanggal Resign Clean"].dt.strftime("%Y-%m") == selected_period
     ]
     jumlah_resign = len(karyawan_resign)
-
-    # Total aktif pada periode terfilter
     total_aktif = len(df_active_filtered)
 
-    # 3. Tampilkan Metrik Streamlit
+    # 4. Tampilkan Metrik Streamlit
     col_m1, col_m2, col_m3 = st.columns(3)
     with col_m1:
         st.metric(
@@ -285,6 +278,7 @@ def render_page(is_admin):
                         )
                         st.rerun()
 
+        # FREEZE / SNAPSHOT BULANAN (DIPERBARUI: MENYIMPAN SELURUH DATA TERMASUK RESIGN)
         with st.sidebar.expander(
             "📸 Freeze / Snapshot Bulanan", expanded=False
         ):
@@ -296,13 +290,11 @@ def render_page(is_admin):
             if st.button(f"🔒 Kunci Data {selected_periode}"):
                 try:
                     df_curr = st.session_state.employees.copy()
-                    df_active = (
-                        df_curr[df_curr["Status"] == "Aktif"].copy()
-                        if "Status" in df_curr.columns
-                        else df_curr.copy()
-                    )
-                    df_active["Periode"] = selected_periode
-                    df_active["Tanggal Snapshot"] = str(date.today())
+                    
+                    # Menyimpan seluruh data karyawan (Aktif & Resign)
+                    df_snapshot_save = df_curr.copy()
+                    df_snapshot_save["Periode"] = selected_periode
+                    df_snapshot_save["Tanggal Snapshot"] = str(date.today())
 
                     cols_order = [
                         "Periode",
@@ -319,6 +311,11 @@ def render_page(is_admin):
                         "Tanggal Snapshot",
                     ]
 
+                    # Pastikan kolom sesuai urutan
+                    for col in cols_order:
+                        if col not in df_snapshot_save.columns:
+                            df_snapshot_save[col] = ""
+
                     df_old_snap = load_snapshot_data()
                     if (
                         not df_old_snap.empty
@@ -329,10 +326,10 @@ def render_page(is_admin):
                         ]
                         df_new_snap = pd.concat([
                             df_old_snap,
-                            df_active[cols_order],
+                            df_snapshot_save[cols_order],
                         ])
                     else:
-                        df_new_snap = df_active[cols_order]
+                        df_new_snap = df_snapshot_save[cols_order]
 
                     save_snapshot_data(df_new_snap)
                     st.success(
