@@ -57,7 +57,7 @@ def render_page(is_admin):
         ].copy()
         active_period_str = selected_dash_period
 
-    df_active_filtered, df_resign_filtered, df_pie_chart = (
+    df_active_filtered, df_resign_filtered, _ = (
         filter_status_for_period(df_ana, active_period_str, selected_dash_period)
     )
 
@@ -72,6 +72,13 @@ def render_page(is_admin):
     ]
     jumlah_resign = len(karyawan_resign)
     total_aktif = len(df_active_filtered)
+
+    # Dataframe Pie Chart yang sinkron dengan Metrik
+    df_pie_chart = pd.DataFrame([
+        {"Status": "Aktif", "Jumlah": total_aktif},
+        {"Status": "Resign", "Jumlah": jumlah_resign}
+    ])
+    df_pie_chart = df_pie_chart[df_pie_chart["Jumlah"] > 0]
 
     # 4. Tampilkan Metrik Streamlit
     col_m1, col_m2, col_m3 = st.columns(3)
@@ -278,7 +285,7 @@ def render_page(is_admin):
                         )
                         st.rerun()
 
-        # FREEZE / SNAPSHOT BULANAN (DIPERBARUI: MENYIMPAN SELURUH DATA TERMASUK RESIGN)
+        # FREEZE / SNAPSHOT BULANAN
         with st.sidebar.expander(
             "📸 Freeze / Snapshot Bulanan", expanded=False
         ):
@@ -291,7 +298,6 @@ def render_page(is_admin):
                 try:
                     df_curr = st.session_state.employees.copy()
                     
-                    # Menyimpan seluruh data karyawan (Aktif & Resign)
                     df_snapshot_save = df_curr.copy()
                     df_snapshot_save["Periode"] = selected_periode
                     df_snapshot_save["Tanggal Snapshot"] = str(date.today())
@@ -311,7 +317,6 @@ def render_page(is_admin):
                         "Tanggal Snapshot",
                     ]
 
-                    # Pastikan kolom sesuai urutan
                     for col in cols_order:
                         if col not in df_snapshot_save.columns:
                             df_snapshot_save[col] = ""
